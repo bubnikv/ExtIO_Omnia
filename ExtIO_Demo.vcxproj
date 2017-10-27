@@ -98,16 +98,24 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Audio.cpp" />
+    <ClCompile Include="cat.cpp" />
     <ClCompile Include="ExtIO_Omnia.cpp" />
+    <ClCompile Include="UIHooks.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ExtIO_Omnia.def" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Audio.h" />
+    <ClInclude Include="cat.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="ExtIO_Omnia.h" />
     <ClInclude Include="LC_ExtIO_Types.h" />
+    <ClInclude Include="libusb\libusb.h" />
+    <ClInclude Include="UIHooks.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="libusb\libusb-1.0.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

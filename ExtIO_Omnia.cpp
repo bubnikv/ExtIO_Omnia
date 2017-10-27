@@ -6,7 +6,9 @@
 
 #include "ExtIO_Omnia.h"
 #include "Audio.h"
+#include "cat.h"
 #include "Config.h"
+#include "UIHooks.h"
 
 #pragma warning(disable : 4996)
 
@@ -34,7 +36,9 @@ int		giWhatIdx = 0;
 pfnExtIOCallback pfnCallback = nullptr;
 volatile int	 giParameterSetNo = 0;
 
-Audio g_Audio;
+Audio	g_Audio;
+Cat		g_Cat;
+UIHooks g_UIHooks;
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
@@ -73,8 +77,13 @@ bool __declspec(dllexport) __stdcall InitHW(char *name, char *model, int& type)
 		giThrIdx = giDefaultThrIdx;
 
 		g_Audio.init();
-		if (!g_Audio.get_error().empty())
+		if (! g_Audio.get_error().empty()) {
 			::MessageBoxA(nullptr, g_Audio.get_error().c_str(), "ExtIO_Omnia", MB_OK | MB_ICONERROR);
+		} else {
+			g_Cat.init();
+			if (! g_Cat.get_error().empty())
+				::MessageBoxA(nullptr, g_Cat.get_error().c_str(), "ExtIO_Omnia", MB_OK | MB_ICONERROR);
+		}
 
 		gbInitHW = true;
 	}
@@ -111,6 +120,9 @@ int64_t EXTIO_API StartHW64(int64_t LOfreq)
 {
 	if (!gbInitHW)
 		return 0;
+
+	g_UIHooks.initialize();
+
 	g_Audio.stop();
 	SetHWLO64(LOfreq);
 	g_Audio.start();
@@ -132,7 +144,8 @@ extern "C"
 void EXTIO_API CloseHW(void)
 {
 	// ..... here you can shutdown your graphical interface, if any............
-	if (gbInitHW )
+	g_UIHooks.destroy();
+	if (gbInitHW)
 	{
 		/* close port */
 	}
@@ -150,59 +163,10 @@ int  EXTIO_API SetHWLO(long LOfreq)
 extern "C"
 int64_t EXTIO_API SetHWLO64(int64_t LOfreq)
 {
-	// ..... set here the LO frequency in the controlled hardware
-	// Set here the frequency of the controlled hardware to LOfreq
-	const int64_t wishedLO = LOfreq;
-	int64_t ret = 0;
-
-	// calculate nearest possible frequency
-	// - emulate receiver which don't have 1 Hz resolution
-	LOfreq += LO_PRECISION / 2;
-	LOfreq /= LO_PRECISION;
-	LOfreq *= LO_PRECISION;
-
-	// same LO - but user wanted change?
-	if ( LOfreq == glLOfreq )
-	{
-		if ( wishedLO < glLOfreq )
-			LOfreq -= LO_PRECISION;
-		else if ( wishedLO > glLOfreq )
-			LOfreq += LO_PRECISION;
-	}
-
-	// check limits
-	if ( LOfreq < LO_MIN )
-	{
-		LOfreq = LO_MIN;
-		ret = -LO_MIN;
-	}
-	else if ( LOfreq > LO_MAX )
-	{
-		LOfreq = LO_MAX;
-		ret = LO_MAX;
-	}
-
 	// take frequency
 	glLOfreq = LOfreq;
-
-	if ( gbInitHW )
-	{
-		// tune to that frequency
-		// @TODO: recalc / modify carrier frequencies???
-		// int64_t err = wishedLO - glLOfreq;
-	}
-
-	if ( wishedLO != LOfreq  &&  pfnCallback )
-		pfnCallback( -1, extHw_Changed_LO, 0.0F, 0 );
-
-	// 0 The function did complete without errors.
-	// < 0 (a negative number N)
-	//     The specified frequency  is  lower than the minimum that the hardware  is capable to generate.
-	//     The absolute value of N indicates what is the minimum supported by the HW.
-	// > 0 (a positive number N) The specified frequency is greater than the maximum that the hardware
-	//     is capable to generate.
-	//     The value of N indicates what is the maximum supported by the HW.
-	return ret;
+	g_Cat.set_freq(LOfreq);
+	return 0;
 }
 
 //---------------------------------------------------------------------------
