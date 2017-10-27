@@ -98,8 +98,12 @@ bool EXTIO_API OpenHW(void)
 	// .....if no graphical interface, delete the following statement
 	//::SetWindowPos(F->handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
-	if ( pfnCallback )
-		pfnCallback( -1, extHw_Changed_ATT, 0.0F, 0 );
+	if (pfnCallback) {
+		pfnCallback(-1, extHw_Changed_ATT, 0.0F, 0);
+		// Let HDSDR swap the left / right IQ channels for the Omnia.
+		pfnCallback(-1, extHw_RX_SwapIQ_ON, 0.0F, 0);
+		pfnCallback(-1, extHw_TX_SwapIQ_ON, 0.0F, 0);
+	}
 
 	// in the above statement, F->handle is the window handle of the panel displayed 
 	// by the DLL, if such a panel exists
