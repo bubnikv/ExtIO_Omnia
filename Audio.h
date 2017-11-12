@@ -91,7 +91,13 @@ private:
 	volatile bool			 m_exit_thread;
 
 	std::vector<float>		 m_receive_buffer;
+	std::vector<float>		 m_receive_buffer_prev;
 	size_t					 m_receive_buffer_cnt;
+
+	bool					 m_muted			  = false;
+	size_t					 m_mute_zeros		  = 0;
+	size_t					 m_unmute_cntr        = 0;
+	std::vector<float>		 m_unmute_envelope;
 };
 
 #endif // AUDIO_H

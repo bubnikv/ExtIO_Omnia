@@ -36,7 +36,10 @@ public:
 	std::string error;
 	std::string serialNumber;
 
+	// Set local oscillator frequency in Hz.
 	bool set_freq(int64_t frequency);
+	// Set the CW TX frequency in Hz.
+	bool set_cw_tx_freq(int64_t frequency);
 
 private:
 	int findPeaberryDevice();

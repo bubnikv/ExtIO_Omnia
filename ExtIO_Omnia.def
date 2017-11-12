@@ -18,9 +18,9 @@ EXPORTS
 ;    GetTune                       = _GetTune@0
 ;    GetFilters                    = _GetFilters@12
 ;    GetMode                       = _GetMode@0
-;    ModeChanged                   = _ModeChanged@4
+    ModeChanged                   = _ModeChanged@4
 ;    IFLimitsChanged               = _IFLimitsChanged@8
-;    TuneChanged                   = _TuneChanged@4
+    TuneChanged                   = _TuneChanged@4
 
 ;    ShowGUI                       = _ShowGUI@0
 ;    HideGUI                       = _HideGUI@0

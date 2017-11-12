@@ -17,6 +17,8 @@
 #include "audio.h"
 #include "avrt.h"
 #include "endpointvolume.h"
+#define _USE_MATH_DEFINES
+#include "math.h"
 
 #include "LC_ExtIO_Types.h"
 
@@ -51,6 +53,8 @@ static void fatal_exit(const std::string &msg)
 	::OutputDebugStringA("\n");
 	__debugbreak();
 }
+
+ #define HAS_TX_AUDIO
 
 void Audio::init()
 {
@@ -91,6 +95,7 @@ void Audio::init()
 	if (!error.empty()) goto Exit;
 	//qDebug() << "receiveCallbackMode=" << receiveCallbackMode << "receiveBufferFrames=" << receiveBufferFrames;
 
+#ifdef HAS_TX_AUDIO
 	findPeaberry(pEnumerator, true, &transmitDevice, &transmitAudioClient, wavex, ERROR_TRANSMIT);
 	if (!transmitDevice) goto Exit;
 	setPeaberryVolume(transmitDevice, ERROR_TRANSMIT);
@@ -98,6 +103,7 @@ void Audio::init()
 	initializeAudioClient(transmitDevice, wfx, &transmitAudioClient, &transmitCallbackMode, &transmitBufferFrames, ERROR_TRANSMIT);
 	if (!error.empty()) goto Exit;
 	//qDebug() << "transmitCallbackMode=" << transmitCallbackMode << "transmitBufferFrames=" << transmitBufferFrames;
+#endif
 
 	receiveEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	transmitEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -110,20 +116,24 @@ void Audio::init()
 		hr = receiveAudioClient->SetEventHandle(receiveEvent);
 		EXIT_ON_HR_ERROR(ERROR_RECEIVE + "IAudioClient::SetEventHandle");
 	}
+#ifdef HAS_TX_AUDIO
 	if (transmitCallbackMode) {
 		hr = transmitAudioClient->SetEventHandle(transmitEvent);
 		EXIT_ON_HR_ERROR(ERROR_TRANSMIT + "IAudioClient::SetEventHandle");
 	}
+#endif
 
 	hr = receiveAudioClient->GetService(
 		IID_IAudioCaptureClient,
 		(void**)&receiveCaptureClient);
 	EXIT_ON_HR_ERROR(ERROR_RECEIVE + "IAudioClient::GetService(IAudioCaptureClient)");
 
+#ifdef HAS_TX_AUDIO
 	hr = transmitAudioClient->GetService(
 		IID_IAudioRenderClient,
 		(void**)&transmitRenderClient);
 	EXIT_ON_HR_ERROR(ERROR_TRANSMIT + "IAudioClient::GetService(IAudioRenderClient)");
+#endif
 
 Exit:
 	CoTaskMemFree(transmitID);
@@ -343,6 +353,9 @@ void Audio::start()
 		return;
 
 	m_exit_thread = false;
+	m_muted = false;
+	m_mute_zeros = 0;
+	m_unmute_cntr = 0;
 	m_hThread = ::CreateThread(nullptr, 0, &Audio::thread_function, (void*)this, CREATE_SUSPENDED, nullptr);
 	::SetThreadPriority(m_hThread, THREAD_PRIORITY_TIME_CRITICAL);
 	::ResumeThread(m_hThread);
@@ -370,8 +383,14 @@ void Audio::run()
 		dwMilliseconds = 1;
 	timeBeginPeriod(dwMilliseconds);
 
-	m_receive_buffer.assign(EXT_BLOCKLEN * 2, 0.f);
+	m_receive_buffer.assign((EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) * 2, 0.f);
+	m_receive_buffer_prev.assign(m_receive_buffer_prev.size(), 0.f);
 	m_receive_buffer_cnt = 0;
+
+	// 2 milliseconds
+	m_unmute_envelope.assign(MUTE_ENVELOPE_LEN, 0.f);
+	for (size_t i = 0; i < m_unmute_envelope.size(); ++ i)
+		m_unmute_envelope[i] = 0.5f + 0.5f * cos((float(i) + 0.5f) * M_PI / float(m_unmute_envelope.size()));
 
 	// Prime buffers before calling start
 	// Necessary for some drivers to know callback timing
@@ -379,8 +398,10 @@ void Audio::run()
 
 	hr = this->receiveAudioClient->Start();
 	if (FAILED(hr)) fatal_exit("receiveAudioClient->Start");
+#ifdef HAS_TX_AUDIO
 	hr = this->transmitAudioClient->Start();
 	if (FAILED(hr)) fatal_exit("transmitAudioClient->Start");
+#endif
 
 	while (! m_exit_thread) {
 		switch (WaitForMultipleObjects(1, events, false, dwMilliseconds)) {
@@ -393,21 +414,30 @@ void Audio::run()
 			fatal_exit("WaitForMultipleObjects");
 			break;
 		}
+#ifdef HAS_TX_AUDIO
 		if (!this->transmitCallbackMode) {
 			hr = this->transmitAudioClient->GetCurrentPadding(&padding);
 			if (SUCCEEDED(hr))
 				doTransmit(this->transmitBufferFrames - padding);
 		}
+#endif
 		doReceive();
 	}
 
 	hr = this->receiveAudioClient->Stop();
 	if (FAILED(hr)) fatal_exit("receiveAudioClient->Stop");
+#ifdef HAS_TX_AUDIO
 	hr = this->transmitAudioClient->Stop();
 	if (FAILED(hr)) fatal_exit("transmitAudioClient->Stop");
+#endif
 
 	timeEndPeriod(dwMilliseconds);
 	if (mmtc) AvRevertMmThreadCharacteristics(mmtc);
+}
+
+static void hdsdr_mute(bool mute)
+{
+	pfnCallback(-1, mute ? extHw_Audio_MUTE_ON : extHw_Audio_MUTE_OFF, 0, nullptr);
 }
 
 void Audio::doReceive()
@@ -421,15 +451,53 @@ void Audio::doReceive()
 	int samples = numFramesToRead * 2;
 	// Process the receive buffer.
 	while (numFramesToRead > 0) {
-		while (numFramesToRead > 0 && m_receive_buffer_cnt < EXT_BLOCKLEN) {
+		while (numFramesToRead > 0 && m_receive_buffer_cnt < EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) {
 			m_receive_buffer[m_receive_buffer_cnt * 2] = float(*buf++) / 32768.f;
 			m_receive_buffer[m_receive_buffer_cnt * 2 + 1] = float(*buf++) / 32768.f;
 			++m_receive_buffer_cnt;
 			--numFramesToRead;
 		}
-		if (m_receive_buffer_cnt == EXT_BLOCKLEN) {
+		if (m_receive_buffer_cnt == EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) {
+			for (size_t i = 2 * (MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE); i < 2 * (EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE); i += 2) {
+				if (m_muted) {
+					if (m_receive_buffer[i] != 0 || m_receive_buffer[i+1] != 0) {
+						// Unmute receiver slowly by an unmute envelope.
+						m_muted = false;
+						hdsdr_mute(false);
+						m_mute_zeros = 0;
+						m_unmute_cntr = m_unmute_envelope.size();
+					}
+				} else {
+					// not muted
+					if (m_receive_buffer[i] == 0 && m_receive_buffer[i+1] == 0) {
+						if (++m_mute_zeros == ZEROS_TO_MUTE) {
+							// Mute the receiver.
+							m_muted = true;
+							hdsdr_mute(true);
+							// Taper the received audio to zero.
+							int j = std::max<int>(0, int(i / 2) - int(m_mute_zeros));
+							int start = std::max<int>(0, j - int(m_unmute_envelope.size()) + 1);
+							for (int k = int(m_unmute_envelope.size()); j >= start; --j) {
+								float a = m_unmute_envelope[-- k];
+								m_receive_buffer[j*2] *= a;
+								m_receive_buffer[j*2+1] *= a;
+							}
+						}
+					} else
+						m_mute_zeros = 0;
+				}
+				if (m_unmute_cntr > 0) {
+					float a = m_unmute_envelope[--m_unmute_cntr];
+					m_receive_buffer[i  ] *= a;
+					m_receive_buffer[i+1] *= a;
+					if (m_unmute_cntr == 0)
+						m_muted = false;
+				}
+			}
 			pfnCallback(EXT_BLOCKLEN, 0, 0.0f, m_receive_buffer.data());
-			m_receive_buffer_cnt = 0;
+			memcpy((char*)m_receive_buffer.data(), (char*)m_receive_buffer.data() + 8 * EXT_BLOCKLEN, 8 * (MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE));
+//			m_receive_buffer.swap(m_receive_buffer_prev);
+			m_receive_buffer_cnt = MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE;
 		}
 	}
 	this->receiveCaptureClient->ReleaseBuffer(numFramesToRead);

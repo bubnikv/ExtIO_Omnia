@@ -83,10 +83,14 @@ int Cat::findPeaberryDevice()
 							m_libusb_device = dev;
 							m_libusb_device_handle = dev_handle;
 							dev_handle = nullptr;
-							++ qtyfound;
-						} else {
+							++qtyfound;
+						}
+						else {
+#if 0
 							libusb_close(m_libusb_device_handle);
 							m_libusb_device_handle = nullptr;
+							++qtyfound;
+#endif
 						}
 					}
 				}
@@ -120,6 +124,23 @@ bool Cat::set_freq(int64_t frequency)
 	int retval = libusb_control_transfer(m_libusb_device_handle, 
 		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
 		0x32 /* REQUEST_SET_FREQ_BY_VALUE */, 0x700 + 0x55, 0,
+		(unsigned char*)buffer, sizeof(buffer), 500);
+	return retval == 4;
+}
+
+bool Cat::set_cw_tx_freq(int64_t frequency)
+{
+	// OK1IAK, Command 0x60:
+	// -------------
+	// Set the oscillator frequency by value. The frequency is formatted in MHz
+	// as 11.21 bits value.
+	// The "automatic band pass filter selection", "smooth tune", "one side calibration" and
+	// the "frequency subtract multiply" are all done in this function. (if enabled in the firmware)
+	char   buffer[4];
+	setLongWord(uint32_t(floor((double(frequency) * 4. * 2.097152 + 0.5))), buffer);  //   2097152=2^21
+	int retval = libusb_control_transfer(m_libusb_device_handle,
+		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
+		0x60 /* REQUEST_SET_CW_TX_FREQ */, 0x700 + 0x55, 0,
 		(unsigned char*)buffer, sizeof(buffer), 500);
 	return retval == 4;
 }

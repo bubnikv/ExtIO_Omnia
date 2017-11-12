@@ -214,11 +214,25 @@ long EXTIO_API GetHWSR(void)
 // extern "C" long EXTIO_API GetTune(void);
 // extern "C" void EXTIO_API GetFilters(int& loCut, int& hiCut, int& pitch);
 // extern "C" char EXTIO_API GetMode(void);
-// extern "C" void EXTIO_API ModeChanged(char mode);
-// extern "C" void EXTIO_API IFLimitsChanged(long low, long high);
-// extern "C" void EXTIO_API TuneChanged(long freq);
+extern "C" void EXTIO_API ModeChanged(char mode)
+{
+}
 
-// extern "C" void    EXTIO_API TuneChanged64(int64_t freq);
+// extern "C" void EXTIO_API IFLimitsChanged(long low, long high);
+
+extern "C" void EXTIO_API TuneChanged64(int64_t freq)
+{
+	g_Cat.set_cw_tx_freq(freq + CW_IQ_TONE_OFFSET);
+}
+
+extern "C" void EXTIO_API TuneChanged(long freq)
+{
+	char buf[2048];
+	sprintf(buf, "tuned to %ld\n", freq);
+	OutputDebugStringA(buf);
+	TuneChanged64((int64_t)freq);
+}
+
 // extern "C" int64_t EXTIO_API GetTune64(void);
 // extern "C" void    EXTIO_API IFLimitsChanged64(int64_t low, int64_t high);
 
