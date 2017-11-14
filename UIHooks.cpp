@@ -1,13 +1,21 @@
 #include "Windows.h"
+#include "CommCtrl.h"
 #include "assert.h"
 #include "stdlib.h"
 #include "stdio.h"
 
 #include <algorithm>
 
+#include "cat.h"
 #include "UIHooks.h"
 
+#define ID_UIHOOKS_FIRST	(1001010)
+#define ID_CWKEYER_TRACKBAR (ID_UIHOOKS_FIRST + 0)
+#define ID_CWKEYER_TEXT		(ID_UIHOOKS_FIRST + 1)
+#define ID_CWKEYER_MODE		(ID_UIHOOKS_FIRST + 2)
+
 static UIHooks *g_uihooks = nullptr;
+extern Cat		g_Cat;
 
 bool UIHooks::initialize()
 {
@@ -57,6 +65,15 @@ void UIHooks::show_waterfall_controls(bool show)
 //	::ShowWindow(this->hwndPrimaryWaterfallControls, show ? SW_SHOW : SW_HIDE);
 	::ShowWindow(this->hwndSecondaryWaterfallControls, show ? SW_SHOW : SW_HIDE);
 	m_layout_invalid = true;
+}
+
+void UIHooks::set_keyer_speed(unsigned int speed)
+{
+	wchar_t buf[64];
+	wsprintf(buf, L"%d WPM", speed);
+	::SetWindowText(this->hwndKeyerSpeedText, buf);
+	::SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETPOS, (WPARAM)TRUE, speed);
+	g_Cat.set_cw_keyer_speed(speed);
 }
 
 BOOL CALLBACK UIHooks::EnumTopLevelWindowsProc(HWND hwnd, LPARAM lparam)
@@ -184,6 +201,39 @@ LRESULT CALLBACK UIHooks::MyWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 			g_uihooks->show_waterfall_controls(!g_uihooks->waterfall_controls_shown);
 		}
 		break;
+	case WM_HSCROLL:
+		if (g_uihooks->hwndKeyerSpeedTrackBar == (HWND)lParam) {
+			DWORD pos;
+			switch (LOWORD(wParam)) {
+			case TB_THUMBPOSITION:
+			case TB_THUMBTRACK:
+				pos = HIWORD(wParam);
+				break;
+			case TB_ENDTRACK:
+				pos = SendMessage(g_uihooks->hwndKeyerSpeedTrackBar, TBM_GETPOS, 0, 0);
+				if (pos > 45)
+					SendMessage(g_uihooks->hwndKeyerSpeedTrackBar, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)45);
+				else if (pos < 5)
+					SendMessage(g_uihooks->hwndKeyerSpeedTrackBar, TBM_SETPOS, (WPARAM)TRUE, 5);
+				break;
+			default:
+				pos = SendMessage(g_uihooks->hwndKeyerSpeedTrackBar, TBM_GETPOS, 0, 0);
+				break;
+			}
+			g_uihooks->set_keyer_speed(pos);
+		}
+		break;
+	case WM_CTLCOLORSTATIC:
+	{
+		if (g_uihooks->hwndKeyerSpeedTrackBar == (HWND)lParam || g_uihooks->hwndKeyerSpeedText == (HWND)lParam ||
+			g_uihooks->hwndKeyerMode == (HWND)lParam) {
+//			DWORD CtrlID = GetDlgCtrlID((HWND)lParam); //Window Control ID
+			HDC hdcStatic = (HDC)wParam;
+			SetTextColor(hdcStatic, RGB(255, 255, 255));
+			SetBkColor(hdcStatic, RGB(0, 0, 0));
+			return (INT_PTR)GetStockObject(BLACK_BRUSH);
+		}
+	}
 	default:
 		return DefWindowProc(hwnd, msg, wParam, lParam);
 	}
@@ -248,6 +298,23 @@ bool UIHooks::create_my_panel()
 		nullptr,    // No menu.
 		wc.hInstance,
 		nullptr);   // Pointer not needed.
+	this->hwndKeyerSpeedTrackBar = CreateWindowEx(0, TRACKBAR_CLASS, L"Trackbar",
+		WS_CHILD | WS_VISIBLE /* | TBS_AUTOTICKS | TBS_ENABLESELRANGE */,
+		120, 10, 200, 40, this->hwndMyPanel, (HMENU)ID_CWKEYER_TRACKBAR, wc.hInstance, nullptr);
+	this->hwndKeyerSpeedText = CreateWindow(L"STATIC", L"teststring", WS_CHILD | WS_VISIBLE,
+		340, 10, 100, 40, this->hwndMyPanel, (HMENU)(ID_CWKEYER_TEXT), wc.hInstance, nullptr);
+	this->hwndKeyerMode = CreateWindow(WC_COMBOBOX, L"",
+		CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+		460, 10, 80, 40, this->hwndMyPanel, (HMENU)(ID_CWKEYER_MODE), wc.hInstance, nullptr);
+
+	SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM)MAKELONG(5, 45));
+	SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETPAGESIZE, 0, (LPARAM)5);
+	this->set_keyer_speed(18);
+
+	wchar_t *modes[] = { L"Straight Key", L"Iambic A", L"Iambic B" };
+	for (int i = 0; i < 3; ++ i)
+		::SendMessage(this->hwndKeyerMode, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)modes[i]);
+	::SendMessage(this->hwndKeyerMode, CB_SETCURSEL, (WPARAM)2, (LPARAM)0);
 
 	this->update_layout();
 	::ShowWindow(this->hwndMyPanel, SW_SHOW);

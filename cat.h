@@ -40,6 +40,9 @@ public:
 	bool set_freq(int64_t frequency);
 	// Set the CW TX frequency in Hz.
 	bool set_cw_tx_freq(int64_t frequency);
+	// Set the CW keyer speed in Words per Minute.
+	// Limited to <5, 45>
+	bool set_cw_keyer_speed(int wpm);
 
 private:
 	int findPeaberryDevice();

@@ -145,6 +145,22 @@ bool Cat::set_cw_tx_freq(int64_t frequency)
 	return retval == 4;
 }
 
+bool Cat::set_cw_keyer_speed(int wpm)
+{
+	// OK1IAK, Command 0x65:
+	// Set keyer speed, in ms per dot.
+	if (wpm < 5)
+		wpm = 5;
+	else if (wpm > 45)
+		wpm = 45;
+	unsigned char ms_per_dot = (unsigned char)(60000.f / (float(wpm) * 50.f) + 0.5f);
+	int retval = libusb_control_transfer(m_libusb_device_handle,
+		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
+		0x65 /* REQUEST_SET_CW_KEYER_SPEED */, 0x700 + 0x55, 0,
+		&ms_per_dot, 1, 500);
+	return retval == 1;
+}
+
 /*
 void Cat::start()
 {

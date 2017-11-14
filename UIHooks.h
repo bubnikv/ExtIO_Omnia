@@ -11,6 +11,8 @@ public:
 	void	show_secondary_waterfall(bool show);
 	void	show_waterfall_controls(bool show);
 
+	void	set_keyer_speed(unsigned int speed);
+
 	// TMainForm "HDSDR ..."
 	HWND	hwndMainFrame = nullptr;
 	// Main waterfall. TPanel ""
@@ -45,6 +47,10 @@ public:
 	HWND	hwndMyPanel = nullptr;
 	HWND	hwndButton1 = nullptr;
 	HWND	hwndButton2 = nullptr;
+
+	HWND	hwndKeyerSpeedTrackBar = nullptr;
+	HWND	hwndKeyerSpeedText = nullptr;
+	HWND	hwndKeyerMode = nullptr;
 
 	bool	secondary_waterfall_show = true;
 	bool	waterfall_controls_shown = true;
