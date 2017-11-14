@@ -14,6 +14,9 @@
 #define ID_CWKEYER_TEXT		(ID_UIHOOKS_FIRST + 1)
 #define ID_CWKEYER_MODE		(ID_UIHOOKS_FIRST + 2)
 
+static int      keyer_modes[] = { IAMBIC_SKEY, 0, IAMBIC_MODE_B };
+static wchar_t *keyer_mode_names[] = { L"Straight Key", L"Iambic A", L"Iambic B" };
+
 static UIHooks *g_uihooks = nullptr;
 extern Cat		g_Cat;
 
@@ -50,6 +53,13 @@ void UIHooks::destroy()
 	this->hwndMyPanel = nullptr;
 	this->hwndButton1 = nullptr;
 	this->hwndButton2 = nullptr;
+}
+
+void UIHooks::show_my_panel(bool show)
+{
+	this->my_panel_shown = show;
+	::ShowWindow(this->hwndMyPanel, show ? SW_SHOW : SW_HIDE);
+	m_layout_invalid = true;
 }
 
 void UIHooks::show_secondary_waterfall(bool show)
@@ -199,6 +209,15 @@ LRESULT CALLBACK UIHooks::MyWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 //			::MessageBoxA(g_uihooks->hwndMainFrame, "Button2 pressed", "Test", 0);
 			// Toggle visibility of the secondary waterfall controls.
 			g_uihooks->show_waterfall_controls(!g_uihooks->waterfall_controls_shown);
+		} else if ((HWND)lParam == g_uihooks->hwndKeyerMode) {
+			if (HIWORD(wParam) == CBN_SELCHANGE) {
+				DWORD mode = SendMessage(g_uihooks->hwndKeyerMode, CB_GETCURSEL, 0, 0);
+				if (mode < 0)
+					mode = 0;
+				else if (mode >= 3)
+					mode = 2;
+				g_Cat.set_cw_keyer_mode(keyer_modes[mode]);
+			}
 		}
 		break;
 	case WM_HSCROLL:
@@ -277,7 +296,7 @@ bool UIHooks::create_my_panel()
 	this->hwndButton1 = ::CreateWindow(
 		L"BUTTON",  // Predefined class; Unicode assumed 
 		L"MsgBox",  // Button text 
-		WS_VISIBLE | WS_CHILD,  // Styles 
+		/* WS_VISIBLE | */ WS_CHILD,  // Styles 
 		10,         // x position 
 		10,         // y position 
 		100,        // Button width
@@ -289,7 +308,7 @@ bool UIHooks::create_my_panel()
 	this->hwndButton2 = ::CreateWindow(
 		L"BUTTON",  // Predefined class; Unicode assumed 
 		L"Hide",    // Button text 
-		WS_VISIBLE | WS_CHILD,  // Styles 
+		/* WS_VISIBLE | */ WS_CHILD,  // Styles 
 		10,         // x position 
 		35,         // y position 
 		100,        // Button width
@@ -298,22 +317,27 @@ bool UIHooks::create_my_panel()
 		nullptr,    // No menu.
 		wc.hInstance,
 		nullptr);   // Pointer not needed.
+	int x = 10;
+	int w = 200;
 	this->hwndKeyerSpeedTrackBar = CreateWindowEx(0, TRACKBAR_CLASS, L"Trackbar",
 		WS_CHILD | WS_VISIBLE /* | TBS_AUTOTICKS | TBS_ENABLESELRANGE */,
-		120, 10, 200, 40, this->hwndMyPanel, (HMENU)ID_CWKEYER_TRACKBAR, wc.hInstance, nullptr);
+		x, 10, w, 40, this->hwndMyPanel, (HMENU)ID_CWKEYER_TRACKBAR, wc.hInstance, nullptr);
+	x += w + 10;
+	w = 100;
 	this->hwndKeyerSpeedText = CreateWindow(L"STATIC", L"teststring", WS_CHILD | WS_VISIBLE,
-		340, 10, 100, 40, this->hwndMyPanel, (HMENU)(ID_CWKEYER_TEXT), wc.hInstance, nullptr);
+		x, 10, w, 40, this->hwndMyPanel, (HMENU)(ID_CWKEYER_TEXT), wc.hInstance, nullptr);
+	x += w + 10;
+	w = 80;
 	this->hwndKeyerMode = CreateWindow(WC_COMBOBOX, L"",
 		CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
-		460, 10, 80, 40, this->hwndMyPanel, (HMENU)(ID_CWKEYER_MODE), wc.hInstance, nullptr);
+		x, 10, w, 40, this->hwndMyPanel, (HMENU)(ID_CWKEYER_MODE), wc.hInstance, nullptr);
 
 	SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM)MAKELONG(5, 45));
 	SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETPAGESIZE, 0, (LPARAM)5);
 	this->set_keyer_speed(18);
 
-	wchar_t *modes[] = { L"Straight Key", L"Iambic A", L"Iambic B" };
 	for (int i = 0; i < 3; ++ i)
-		::SendMessage(this->hwndKeyerMode, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)modes[i]);
+		::SendMessage(this->hwndKeyerMode, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)keyer_mode_names[i]);
 	::SendMessage(this->hwndKeyerMode, CB_SETCURSEL, (WPARAM)2, (LPARAM)0);
 
 	this->update_layout();
@@ -339,7 +363,8 @@ void UIHooks::update_layout()
 		::ScreenToClient(this->hwndLower, (LPPOINT)&rectRight.left);
 		::ScreenToClient(this->hwndLower, (LPPOINT)&rectRight.right);
 		DWORD width  = clientRect.right - rectLeft.right - 1;
-		DWORD height = (clientRect.bottom - rectLeft.top) / 2;
+		DWORD height = clientRect.bottom - rectLeft.top;
+		height -= (this->my_panel_shown ? 50 : 1);
 //		::MoveWindow(this->hwndLowerRight, rectLeft.right, waterfall_controls_shown ? rectLeft.top : (rectLeft.top - 100), width, waterfall_controls_shown ? height : (height + 200), TRUE);
 		if (this->waterfall_controls_shown)
 			::MoveWindow(this->hwndLowerRight, rectLeft.right, rectLeft.top, width, height, TRUE);
@@ -353,7 +378,7 @@ void UIHooks::update_layout()
 			::MoveWindow(this->hwndLowerRight, rectLeft.right, rectLeft.top, width, height + (r.bottom - r.top) - 5, TRUE);
 		}
 //		::MoveWindow(this->hwndSecondaryWaterfall, rectLeft.right, waterfall_controls_shown ? rectLeft.top : (rectLeft.top - 100), width, waterfall_controls_shown ? height : (height + 200), TRUE);
-		::SetWindowPos(this->hwndMyPanel, HWND_TOP, rectLeft.right, rectLeft.top + height, width, height - 1, SWP_SHOWWINDOW);
+		::SetWindowPos(this->hwndMyPanel, my_panel_shown ? HWND_TOP : 0, rectLeft.right, rectLeft.top + height, width, height - 1, my_panel_shown ? SWP_SHOWWINDOW : SWP_HIDEWINDOW);
 		g_uihooks->m_layout_invalid = false;
 	}
 }

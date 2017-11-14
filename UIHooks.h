@@ -10,6 +10,7 @@ public:
 
 	void	show_secondary_waterfall(bool show);
 	void	show_waterfall_controls(bool show);
+	void	show_my_panel(bool show);
 
 	void	set_keyer_speed(unsigned int speed);
 
@@ -54,6 +55,7 @@ public:
 
 	bool	secondary_waterfall_show = true;
 	bool	waterfall_controls_shown = true;
+	bool	my_panel_shown			 = false;
 
 private:
 	static BOOL    CALLBACK EnumTopLevelWindowsProc(HWND hwnd, LPARAM lparam);

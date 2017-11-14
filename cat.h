@@ -26,6 +26,11 @@
 #define USBDEV_SHARED_PRODUCT   0x05DC  // OBDEV PID 
 #define VENDOR_NAME_OBDEV		"www.obdev.at"
 
+#define IAMBIC_MODE_B       (1 << 0)
+#define IAMBIC_SKEY         (1 << 1)
+#define IAMBIC_AUTOSPACE    (1 << 2)
+#define IAMBIC_RST_N        (1 << 7)
+
 class Cat {
 public:
 	Cat() {}
@@ -43,6 +48,7 @@ public:
 	// Set the CW keyer speed in Words per Minute.
 	// Limited to <5, 45>
 	bool set_cw_keyer_speed(int wpm);
+	bool set_cw_keyer_mode(int mode);
 
 private:
 	int findPeaberryDevice();

@@ -161,6 +161,18 @@ bool Cat::set_cw_keyer_speed(int wpm)
 	return retval == 1;
 }
 
+bool Cat::set_cw_keyer_mode(int mode)
+{
+	// OK1IAK, Command 0x66:
+	// Set keyer mode.
+	unsigned char umode = (unsigned char)mode + 0x80;
+	int retval = libusb_control_transfer(m_libusb_device_handle,
+		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
+		0x66 /* REQUEST_SET_CW_KEYER_MODE */, 0x700 + 0x55, 0,
+		&umode, 1, 500);
+	return retval == 1;
+}
+
 /*
 void Cat::start()
 {

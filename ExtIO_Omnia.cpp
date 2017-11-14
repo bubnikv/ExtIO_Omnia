@@ -216,6 +216,10 @@ long EXTIO_API GetHWSR(void)
 // extern "C" char EXTIO_API GetMode(void);
 extern "C" void EXTIO_API ModeChanged(char mode)
 {
+	char buf[2048];
+	sprintf(buf, "Mode changed: %c\n", mode);
+	OutputDebugStringA(buf);
+	g_UIHooks.show_my_panel(mode == 'C');
 }
 
 // extern "C" void EXTIO_API IFLimitsChanged(long low, long high);
