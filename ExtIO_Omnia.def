@@ -24,6 +24,7 @@ EXPORTS
 
 ;    ShowGUI                       = _ShowGUI@0
 ;    HideGUI                       = _HideGUI@0
+	SwitchGUI					  = _SwitchGUI@0
 
 ;    RawDataReady                  = _RawDataReady@16
 

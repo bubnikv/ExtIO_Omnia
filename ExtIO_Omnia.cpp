@@ -1,5 +1,6 @@
 // #define WIN32_LEAN_AND_MEAN             // Selten verwendete Teile der Windows-Header nicht einbinden.
 #include <windows.h>
+#include <commctrl.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -8,6 +9,7 @@
 #include "Audio.h"
 #include "cat.h"
 #include "Config.h"
+#include "ConfigDlg.h"
 #include "UIHooks.h"
 
 #pragma warning(disable : 4996)
@@ -37,8 +39,8 @@ pfnExtIOCallback pfnCallback = nullptr;
 volatile int	 giParameterSetNo = 0;
 
 Audio	g_Audio;
-Cat		g_Cat;
 UIHooks g_UIHooks;
+HINSTANCE g_hInstance = (HINSTANCE)nullptr;
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
@@ -48,6 +50,14 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
+	{
+		g_hInstance = (HINSTANCE)hModule;
+		INITCOMMONCONTROLSEX ice;
+		ice.dwSize = sizeof(ice);
+		ice.dwICC = ICC_TAB_CLASSES | ICC_UPDOWN_CLASS;
+		InitCommonControlsEx(&ice);
+		break;
+	}
 	case DLL_THREAD_ATTACH:
 	case DLL_THREAD_DETACH:
 	case DLL_PROCESS_DETACH:
@@ -105,6 +115,10 @@ bool EXTIO_API OpenHW(void)
 		pfnCallback(-1, extHw_TX_SwapIQ_ON, 0.0F, 0);
 	}
 
+	g_Cat.set_cw_keyer_mode(g_config.keyer_mode);
+	g_Cat.set_cw_keyer_speed(g_config.keyer_wpm);
+	g_Cat.setIQBalanceAndPower(g_config.tx_iq_balance_phase_correction, g_config.tx_iq_balance_amplitude_correction, g_config.tx_power);
+
 	// in the above statement, F->handle is the window handle of the panel displayed 
 	// by the DLL, if such a panel exists
 	return gbInitHW;
@@ -149,6 +163,7 @@ void EXTIO_API CloseHW(void)
 {
 	// ..... here you can shutdown your graphical interface, if any............
 	g_UIHooks.destroy();
+	destroy_config_dialog();
 	if (gbInitHW)
 	{
 		/* close port */
@@ -243,6 +258,11 @@ extern "C" void EXTIO_API TuneChanged(long freq)
 //---------------------------------------------------------------------------
 
 // extern "C" void EXTIO_API RawDataReady(long samprate, int *Ldata, int *Rdata, int numsamples)
+
+extern "C" void EXTIO_API SwitchGUI()
+{
+	toggle_config_dialog(g_hInstance);
+}
 
 //---------------------------------------------------------------------------
 extern "C"
@@ -544,12 +564,25 @@ extern "C" long EXTIO_API ExtIoGetBandwidth(int srate_idx) { return (srate_idx =
 // optional functions to receive and set all special receiver settings (for save/restore in application)
 //   allows application and profile specific settings.
 //   easy to handle without problems with newer Windows versions saving a .ini file below programs as non-admin-user
-extern "C"
-int  EXTIO_API ExtIoGetSetting( int idx, char * description, char * value )
+extern "C" int EXTIO_API ExtIoGetSetting(int idx, char *description, char *value)
 {
-	return -1;	// ERROR
+	if (idx == 0) {
+		strcpy(description, "Omnia Config");
+		std::string cfg = g_config.serialize();
+		// The output buffer is limited to 1024, so the configuration cannot be too long.
+		strncpy(value, cfg.c_str(), 1024);
+		// ok
+		return 0;
+	} else {
+		// error, this is the last index stored
+		return -1;
+	}
 }
-extern "C"
-void EXTIO_API ExtIoSetSetting(int idx, const char * value)
+
+extern "C" void EXTIO_API ExtIoSetSetting(int idx, const char * value)
 {
+	if (idx == 0) {
+		g_config.deserialize(value);
+		g_config.validate();
+	}
 }

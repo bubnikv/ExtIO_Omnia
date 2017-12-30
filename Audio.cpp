@@ -17,7 +17,6 @@
 #include "audio.h"
 #include "avrt.h"
 #include "endpointvolume.h"
-#define _USE_MATH_DEFINES
 #include "math.h"
 
 #include "LC_ExtIO_Types.h"
@@ -54,7 +53,7 @@ static void fatal_exit(const std::string &msg)
 	__debugbreak();
 }
 
- #define HAS_TX_AUDIO
+#define HAS_TX_AUDIO
 
 void Audio::init()
 {
@@ -390,7 +389,7 @@ void Audio::run()
 	// 2 milliseconds
 	m_unmute_envelope.assign(MUTE_ENVELOPE_LEN, 0.f);
 	for (size_t i = 0; i < m_unmute_envelope.size(); ++ i)
-		m_unmute_envelope[i] = 0.5f + 0.5f * cos((float(i) + 0.5f) * M_PI / float(m_unmute_envelope.size()));
+		m_unmute_envelope[i] = 0.5f + 0.5f * float(cos((float(i) + 0.5f)) * M_PI / float(m_unmute_envelope.size()));
 
 	// Prime buffers before calling start
 	// Necessary for some drivers to know callback timing

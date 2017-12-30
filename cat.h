@@ -22,6 +22,8 @@
 
 #include "libusb/libusb.h"
 
+#include "Config.h"
+
 #define USBDEV_SHARED_VENDOR    0x16C0  // VOTI  VID
 #define USBDEV_SHARED_PRODUCT   0x05DC  // OBDEV PID 
 #define VENDOR_NAME_OBDEV		"www.obdev.at"
@@ -48,7 +50,9 @@ public:
 	// Set the CW keyer speed in Words per Minute.
 	// Limited to <5, 45>
 	bool set_cw_keyer_speed(int wpm);
-	bool set_cw_keyer_mode(int mode);
+	bool set_cw_keyer_mode(KeyerMode mode);
+
+	bool setIQBalanceAndPower(double phase_balance_deg, double amplitude_balance, double power);
 
 private:
 	int findPeaberryDevice();
@@ -76,5 +80,7 @@ private:
 	void doWork();
 	void approveTransmit();
 };
+
+extern Cat g_Cat;
 
 #endif // CAT_H

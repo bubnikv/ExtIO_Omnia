@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "cat.h"
+#include "Config.h"
 #include "UIHooks.h"
 
 #define ID_UIHOOKS_FIRST	(1001010)
@@ -14,11 +15,9 @@
 #define ID_CWKEYER_TEXT		(ID_UIHOOKS_FIRST + 1)
 #define ID_CWKEYER_MODE		(ID_UIHOOKS_FIRST + 2)
 
-static int      keyer_modes[] = { IAMBIC_SKEY, 0, IAMBIC_MODE_B };
 static wchar_t *keyer_mode_names[] = { L"Straight Key", L"Iambic A", L"Iambic B" };
 
 static UIHooks *g_uihooks = nullptr;
-extern Cat		g_Cat;
 
 bool UIHooks::initialize()
 {
@@ -83,6 +82,7 @@ void UIHooks::set_keyer_speed(unsigned int speed)
 	wsprintf(buf, L"%d WPM", speed);
 	::SetWindowText(this->hwndKeyerSpeedText, buf);
 	::SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETPOS, (WPARAM)TRUE, speed);
+	g_config.keyer_wpm = speed;
 	g_Cat.set_cw_keyer_speed(speed);
 }
 
@@ -216,7 +216,8 @@ LRESULT CALLBACK UIHooks::MyWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 					mode = 0;
 				else if (mode >= 3)
 					mode = 2;
-				g_Cat.set_cw_keyer_mode(keyer_modes[mode]);
+				g_config.keyer_mode = (KeyerMode)mode;
+				g_Cat.set_cw_keyer_mode((KeyerMode)mode);
 			}
 		}
 		break;
@@ -334,11 +335,11 @@ bool UIHooks::create_my_panel()
 
 	SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM)MAKELONG(5, 45));
 	SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETPAGESIZE, 0, (LPARAM)5);
-	this->set_keyer_speed(18);
+	this->set_keyer_speed(g_config.keyer_wpm);
 
 	for (int i = 0; i < 3; ++ i)
 		::SendMessage(this->hwndKeyerMode, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)keyer_mode_names[i]);
-	::SendMessage(this->hwndKeyerMode, CB_SETCURSEL, (WPARAM)2, (LPARAM)0);
+	::SendMessage(this->hwndKeyerMode, CB_SETCURSEL, (WPARAM)g_config.keyer_mode, (LPARAM)0);
 
 	this->update_layout();
 	::ShowWindow(this->hwndMyPanel, SW_SHOW);

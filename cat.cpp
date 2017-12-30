@@ -16,6 +16,9 @@
 
 #include "cat.h"
 
+#include <vector>
+#include <cfloat>
+
 bool Cat::init()
 {
 	setFreq(33333333); // Default I/Q ordering
@@ -161,16 +164,58 @@ bool Cat::set_cw_keyer_speed(int wpm)
 	return retval == 1;
 }
 
-bool Cat::set_cw_keyer_mode(int mode)
+bool Cat::set_cw_keyer_mode(KeyerMode keyer_mode)
 {
 	// OK1IAK, Command 0x66:
 	// Set keyer mode.
-	unsigned char umode = (unsigned char)mode + 0x80;
+	unsigned char umode = 0x80;
+	switch (keyer_mode) {
+	case KEYER_MODE_SK:			umode += IAMBIC_SKEY;	break;
+	case KEYER_MODE_IAMBIC_A:							break;
+	case KEYER_MODE_IAMBIC_B:	umode += IAMBIC_MODE_B; break;
+	}
 	int retval = libusb_control_transfer(m_libusb_device_handle,
 		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
 		0x66 /* REQUEST_SET_CW_KEYER_MODE */, 0x700 + 0x55, 0,
 		&umode, 1, 500);
 	return retval == 1;
+}
+
+bool Cat::setIQBalanceAndPower(double phase_balance_deg, double amplitude_balance, double power)
+{
+	// Allocate 9ms of 96x IQ samples. This buffer represents 4ms of raise, 1ms of steady and 4ms of fall.
+	std::vector<int16_t> buffer(96 * 2 * 9, 0);
+
+	// Generate the IQ waveforms.
+	const double        freq_kHz = 1.;
+	const double        phase_balance = phase_balance_deg * M_PI / 180.;
+	const double        i_amp_corr = (amplitude_balance > 1.) ?  1.						 : amplitude_balance;
+	const double        q_amp_corr = (amplitude_balance > 1.) ? (1. / amplitude_balance) : 1.;
+	for (size_t i = 0; i < 96 * 9; ++i) {
+		// Time, from 0ms to 9ms.
+		double seq = (0.5 + double(i)) / double(96);
+		// Amplitude shape, shaped by the Student aka Error function.
+		double shape = 1.;
+		if (i < 96 * 4)
+			shape = erf(seq - 2.) * 0.5 + 0.5;
+		else if (i >= 96 * 5)
+			shape = erf((9. - seq) - 2.) * 0.5 + 0.5;
+		buffer[i * 2    ] = int16_t(floor(32767. * power * shape * i_amp_corr * sin(2. * M_PI * freq_kHz * seq + phase_balance) + 0.5));
+		buffer[i * 2 + 1] = int16_t(floor(32767. * power * shape * q_amp_corr * cos(2. * M_PI * freq_kHz * seq                ) + 0.5));
+	}
+
+	// OK1IAK, Command 0x69: CMD_SET_CW_IQ_WAVEFORM
+	uint16_t  len = buffer.size() * sizeof(int16_t);
+	// Swap endianness, the PSoC3 Keil compiler works with big endian.
+	// Use char* to avoid compiler aliasing.
+	char     *data = (char*)buffer.data();
+	for (size_t i = 0; i < len; i += 2)
+		std::swap(data[i], data[i + 1]);
+	int retval = libusb_control_transfer(m_libusb_device_handle,
+		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
+		0x69 /* CMD_SET_CW_IQ_WAVEFORM */, 0x700 + 0x55, 0,
+		(unsigned char*)data, len, 500);
+	return retval == len;
 }
 
 /*
@@ -267,3 +312,5 @@ void Cat::approveTransmit()
 			break;
 	transmitOK = i < n;
 }
+
+Cat	g_Cat;
