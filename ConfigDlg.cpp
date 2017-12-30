@@ -178,6 +178,16 @@ public:
 		case WM_CTLCOLORDLG:
 		case WM_CTLCOLORSTATIC:
 			return (INT_PTR)GetStockObject(WHITE_BRUSH);
+		case WM_COMMAND:
+		{
+			HWND hwnd_control = (HWND)lParam;
+			int  control_id   = GetDlgCtrlID(hwnd_control);
+			if (control_id == IDC_IQ_BALANCE_RESET) {
+				g_config.tx_iq_balance_amplitude_correction = 1.;
+				g_config.tx_iq_balance_phase_correction = 0.;
+				init_iq_balance_tab(GetParent(hwnd_control));
+			}
+		}
 		case WM_HSCROLL:
 			switch (GetDlgCtrlID((HWND)lParam)) {
 			case IDC_SLIDER_OUTPUT_POWER:
