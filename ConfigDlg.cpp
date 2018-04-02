@@ -11,7 +11,8 @@ static HINSTANCE g_hInstance	 = nullptr;
 
 static std::vector<std::pair<std::string, int>> g_pages = { 
 	{ "TX Power",		IDD_PAGE_POWER		}, 
-	{ "TX IQ Balance",	IDD_PAGE_IQ_BALANCE }
+	{ "TX IQ Balance",	IDD_PAGE_IQ_BALANCE },
+	{ "Amplifier",		IDD_PAGE_AMP }
 };
 
 class ConfigDlg
@@ -156,6 +157,62 @@ public:
 		update_tx_waveform();
 	}
 
+	static void init_amp_tab(HWND hwnd)
+	{
+		HWND hslider = GetDlgItem(hwnd, IDC_SLIDER_TX_DELAY);
+		SendMessage(hslider, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM)MAKELONG(0, 150));
+		SendMessage(hslider, TBM_SETPAGESIZE, 0, (LPARAM)10);
+		SendMessage(hslider, TBM_SETPOS, (WPARAM)TRUE, (g_config.tx_delay + 50) / 100);
+		update_tx_delay_text(hwnd);
+		hslider = GetDlgItem(hwnd, IDC_SLIDER_TX_HOLD);
+		SendMessage(hslider, TBM_SETRANGE, (WPARAM)TRUE, (LPARAM)MAKELONG(0, 2000));
+		SendMessage(hslider, TBM_SETPAGESIZE, 0, (LPARAM)500);
+		SendMessage(hslider, TBM_SETPOS, (WPARAM)TRUE, (g_config.tx_hang + 500) / 1000);
+		update_tx_hold_text(hwnd);
+	}
+
+	static void update_tx_delay_text(HWND hwnd)
+	{
+		HWND htext = GetDlgItem(hwnd, IDC_TEXT_OUTPUT_TX_DELAY);
+		char text[1024];
+		sprintf(text, "Initial TX delay after AMP relay is switched in: %2.1lf ms", g_config.tx_delay * 0.001);
+		SetWindowTextA(htext, text);
+	}
+
+	static void update_tx_hold_text(HWND hwnd)
+	{
+		HWND htext = GetDlgItem(hwnd, IDC_TEXT_OUTPUT_TX_HOLD);
+		char text[1024];
+		sprintf(text, "AMP relay hang time: %2.3lf s", g_config.tx_hang * 0.000001);
+		SetWindowTextA(htext, text);
+	}
+
+	static void handle_tx_delay_slider(HWND hwnd)
+	{
+		DWORD pos;
+		pos = SendMessage(hwnd, TBM_GETPOS, 0, 0);
+		if (pos > 15000) {
+			pos = 15000;
+			SendMessage(hwnd, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)pos);
+		}
+		g_config.tx_delay = (int)pos * 100;
+		g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+		update_tx_delay_text(GetParent(hwnd));
+	}
+
+	static void handle_tx_hang_slider(HWND hwnd)
+	{
+		DWORD pos;
+		pos = SendMessage(hwnd, TBM_GETPOS, 0, 0);
+		if (pos > 2000) {
+			pos = 2000;
+			SendMessage(hwnd, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)pos);
+		}
+		g_config.tx_hang = (int)pos * 1000;
+		g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+		update_tx_hold_text(GetParent(hwnd));
+	}
+
 	static BOOL CALLBACK tab_dialog_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		switch (uMsg)
@@ -169,6 +226,9 @@ public:
 				break;
 			case IDD_PAGE_IQ_BALANCE:
 				init_iq_balance_tab(hwnd);
+				break;
+			case IDD_PAGE_AMP:
+				init_amp_tab(hwnd);
 				break;
 			default:
 				break;
@@ -204,6 +264,12 @@ public:
 				break;
 			case IDC_SLIDER_PHASE_BALANCE_FINE:
 				handle_iq_phase_balance_slider_fine((HWND)lParam);
+				break;
+			case IDC_SLIDER_TX_DELAY:
+				handle_tx_delay_slider((HWND)lParam);
+				break;
+			case IDC_SLIDER_TX_HOLD:
+				handle_tx_hang_slider((HWND)lParam);
 				break;
 			}
 			break;

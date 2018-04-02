@@ -181,6 +181,36 @@ bool Cat::set_cw_keyer_mode(KeyerMode keyer_mode)
 	return retval == 1;
 }
 
+// Delay of the dit sent after dit played, to avoid hot switching of the AMP relay, in microseconds. Maximum time is 15ms.
+// Relay hang after the last dit, in microseconds. Maximum time is 10 seconds.
+bool Cat::set_amp_control(bool enabled, int delay, int hang)
+{
+	// OK1IAK, Command 0x67: CMD_SET_AMP_SEQUENCING
+	// Convert delay value to 0.5ms time intervals.
+	if (delay < 0 || ! enabled)
+		delay = 0;
+	else if (delay > 15000)
+		delay = 15000;
+	delay = (delay + 250) / 500;
+	// Convert hang value to 0.5ms time intervals.
+	if (hang < 0 || !enabled)
+		hang = 0;
+	else if (hang > 10000000)
+		hang = 10000000;
+	hang = (hang + 250) / 500;
+	// Form the packet.
+	unsigned char buffer[4];
+	buffer[0] = enabled;
+	buffer[1] = delay;
+	buffer[2] = hang >> 8;
+	buffer[3] = hang & 0x0ff;
+	int retval = libusb_control_transfer(m_libusb_device_handle,
+		LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
+		0x67 /* CMD_SET_AMP_SEQUENCING */, 0x700 + 0x55, 0,
+		(unsigned char*)buffer, sizeof(buffer), 500);
+	return retval == 4;
+}
+
 bool Cat::setIQBalanceAndPower(double phase_balance_deg, double amplitude_balance, double power)
 {
 	// Allocate 9ms of 96x IQ samples. This buffer represents 4ms of raise, 1ms of steady and 4ms of fall.

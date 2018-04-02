@@ -51,6 +51,9 @@ public:
 	// Limited to <5, 45>
 	bool set_cw_keyer_speed(int wpm);
 	bool set_cw_keyer_mode(KeyerMode mode);
+	// Delay of the dit sent after dit played, to avoid hot switching of the AMP relay, in microseconds. Maximum time is 15ms.
+	// Relay hang after the last dit, in microseconds. Maximum time is 10 seconds.
+	bool set_amp_control(bool enabled, int delay, int hang);
 
 	bool setIQBalanceAndPower(double phase_balance_deg, double amplitude_balance, double power);
 

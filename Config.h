@@ -3,9 +3,9 @@
 #include <string>
 
 #define EXTIO_EXPORTS		1
-#define HWNAME				"ExtIO_Omnia-0.2"
+#define HWNAME				"ExtIO_Omnia-0.3"
 #define HWMODEL				"ExtIO_Omnia"
-#define SETTINGS_IDENTIFIER	"ExtIO_Omnia-0.2"
+#define SETTINGS_IDENTIFIER	"ExtIO_Omnia-0.3"
 // 5.3ms latency
 #define EXT_BLOCKLEN		(512)			/* only multiples of 512 */
 #define ZEROS_TO_MUTE		(32)
@@ -37,6 +37,10 @@ struct Config
 
 	KeyerMode	keyer_mode							= KEYER_MODE_IAMBIC_B;
 	int			keyer_wpm							= 18;
+
+	bool		amp_enabled							= false;
+	int			tx_delay							= 8000; // 8ms
+	int			tx_hang								= 500000; // 0.5s
 };
 
 extern Config g_config;

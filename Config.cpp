@@ -25,6 +25,12 @@ std::string Config::serialize() const
 	}
 	sprintf(buf, "keyer_wpm=%d\n", this->keyer_wpm);
 	out += buf;
+	sprintf(buf, "amp_enabled=%d\n", (int)this->amp_enabled);
+	out += buf;
+	sprintf(buf, "tx_delay=%d\n", this->tx_delay);
+	out += buf;
+	sprintf(buf, "tx_hang=%d\n", this->tx_hang);
+	out += buf;
 	return out;
 }
 
@@ -54,6 +60,12 @@ void Config::deserialize(const char *str)
 					this->keyer_mode = KEYER_MODE_IAMBIC_B;
 			} else if (key == "keyer_wpm")
 				this->keyer_wpm = int(atoi(value.c_str()));
+			else if (key == "amp_enabled")
+				this->amp_enabled = (value == "true" || value == "1");
+			else if (key == "tx_delay")
+				this->tx_delay = atoi(value.c_str());
+			else if (key == "tx_hang")
+				this->tx_hang = atoi(value.c_str());
 		}
 		p = endptr;
 		while (*p == '\n')
@@ -67,4 +79,6 @@ void Config::validate()
 	tx_iq_balance_phase_correction     = std::min(std::max(tx_iq_balance_phase_correction,     -15. ), 15.);
 	tx_power						   = std::min(std::max(tx_power,						     0. ),  1.);
 	keyer_wpm						   = std::min(std::max(keyer_wpm,							 5  ), 45 );
+	tx_delay						   = std::min(std::max(tx_delay,							 0  ), 15000);
+	tx_hang							   = std::min(std::max(tx_hang,							     0  ), 10000000);
 }
