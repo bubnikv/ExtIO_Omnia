@@ -384,7 +384,6 @@ void Audio::run()
 	timeBeginPeriod(dwMilliseconds);
 
 	m_receive_buffer.assign((EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) * 2, 0.f);
-	m_receive_buffer_prev.assign(m_receive_buffer_prev.size(), 0.f);
 	m_receive_buffer_cnt = 0;
 
 	// 2 milliseconds
@@ -452,8 +451,8 @@ void Audio::doReceive()
 	// Process the receive buffer.
 	while (numFramesToRead > 0) {
 		while (numFramesToRead > 0 && m_receive_buffer_cnt < EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) {
-			m_receive_buffer[m_receive_buffer_cnt * 2] = float(*buf++) / 32768.f;
-			m_receive_buffer[m_receive_buffer_cnt * 2 + 1] = float(*buf++) / 32768.f;
+			m_receive_buffer[m_receive_buffer_cnt * 2] = *buf++;
+			m_receive_buffer[m_receive_buffer_cnt * 2 + 1] = *buf++;
 			++m_receive_buffer_cnt;
 			--numFramesToRead;
 		}
@@ -479,8 +478,10 @@ void Audio::doReceive()
 							int start = std::max<int>(0, j - int(m_unmute_envelope.size()) + 1);
 							for (int k = int(m_unmute_envelope.size()); j >= start; --j) {
 								float a = m_unmute_envelope[-- k];
-								m_receive_buffer[j*2] *= a;
-								m_receive_buffer[j*2+1] *= a;
+								int u = int(m_receive_buffer[j * 2    ] * a + 0.5f);
+								int v = int(m_receive_buffer[j * 2 + 1] * a + 0.5f);
+								m_receive_buffer[j * 2    ] = int16_t(std::min(32767, std::max(-32768, u)));
+								m_receive_buffer[j * 2 + 1] = int16_t(std::min(32767, std::max(-32768, v)));
 							}
 						}
 					} else
@@ -488,15 +489,16 @@ void Audio::doReceive()
 				}
 				if (m_unmute_cntr > 0) {
 					float a = m_unmute_envelope[--m_unmute_cntr];
-					m_receive_buffer[i  ] *= a;
-					m_receive_buffer[i+1] *= a;
+					int u = int(m_receive_buffer[i    ] * a + 0.5f);
+					int v = int(m_receive_buffer[i + 1] * a + 0.5f);
+					m_receive_buffer[i    ] = int16_t(std::min(32767, std::max(-32768, u)));
+					m_receive_buffer[i + 1] = int16_t(std::min(32767, std::max(-32768, v)));
 					if (m_unmute_cntr == 0)
 						m_muted = false;
 				}
 			}
 			pfnCallback(EXT_BLOCKLEN, 0, 0.0f, m_receive_buffer.data());
-			memcpy((char*)m_receive_buffer.data(), (char*)m_receive_buffer.data() + 8 * EXT_BLOCKLEN, 8 * (MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE));
-//			m_receive_buffer.swap(m_receive_buffer_prev);
+			memcpy((char*)m_receive_buffer.data(), (char*)m_receive_buffer.data() + 4 * EXT_BLOCKLEN, 4 * (MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE));
 			m_receive_buffer_cnt = MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE;
 		}
 	}

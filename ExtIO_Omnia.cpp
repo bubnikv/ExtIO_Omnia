@@ -69,7 +69,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 extern "C"
 bool __declspec(dllexport) __stdcall InitHW(char *name, char *model, int& type)
 {
-	type = exthwUSBfloat32;
+	type = exthwUSBdata16;
 	strcpy(name,  HWNAME);
 	strcpy(model, HWMODEL);
 

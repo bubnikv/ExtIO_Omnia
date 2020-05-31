@@ -90,8 +90,7 @@ private:
 	// Flag to indicate the audio thread to stop.
 	volatile bool			 m_exit_thread		  = false;
 
-	std::vector<float>		 m_receive_buffer;
-	std::vector<float>		 m_receive_buffer_prev;
+	std::vector<int16_t>	 m_receive_buffer;
 	size_t					 m_receive_buffer_cnt;
 
 	bool					 m_muted			  = false;

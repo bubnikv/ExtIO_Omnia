@@ -183,8 +183,8 @@ void NetworkClient::run()
             case ENET_EVENT_TYPE_RECEIVE:
                 if (event.channelID == 0) {
                     // Audio channel packet. Pass it to HDSDR audio callback.
-                    assert(event.packet->dataLength == EXT_BLOCKLEN * 2 * 4);
-                    if (event.packet->dataLength == EXT_BLOCKLEN * 2 * 4)
+                    assert(event.packet->dataLength == EXT_BLOCKLEN * 2 * 2);
+                    if (event.packet->dataLength == EXT_BLOCKLEN * 2 * 2)
                         pfnCallback(EXT_BLOCKLEN, 0, 0.0f, event.packet->data);
                 }
                 enet_packet_destroy(event.packet);

@@ -211,7 +211,7 @@ extern "C" {
         assert(cnt == -1 || cnt == 0 || cnt == EXT_BLOCKLEN);
         if (cnt == EXT_BLOCKLEN) {
             // Send a big 
-            enet_host_broadcast(g_server, 0, enet_packet_create(IQdata, cnt * 2 * 4, 0));
+            enet_host_broadcast(g_server, 0, enet_packet_create(IQdata, cnt * 2 * 2, 0));
         }
         // 2) Pump the UDP packets.
         for (;;) {
