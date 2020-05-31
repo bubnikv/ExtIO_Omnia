@@ -199,8 +199,6 @@ struct Client
     std::string name;
 };
 
-static Client       g_clients[max_clients];
-
 static Audio        g_audio;
 static Cat          g_cat;
 static ENetAddress  g_address;
@@ -223,7 +221,7 @@ extern "C" {
                 break;
             switch (event.type) {
             case ENET_EVENT_TYPE_CONNECT:
-                event.peer->data = &g_clients[event.peer->connectID];
+                event.peer->data = new Client;
                 {
                     char buf[2048];
                     if (! enet_address_get_host(&event.peer->address, buf, 2048)) {
@@ -235,13 +233,66 @@ extern "C" {
                 printf("(Server) We got a new connection from %x\n", event.peer->address.host);
                 break;
             case ENET_EVENT_TYPE_RECEIVE:
-                printf("(Server) Message from client : %s\n", event.packet->data);
-                // Lets broadcast this message to all
-                // enet_host_broadcast(server, 0, event.packet);
+                // Decode CatCommand
+                if (event.channelID == 1 && event.packet->dataLength > 2) {
+                    CatCommandID cmd;
+                    memcpy(&cmd, event.packet->data, 2);
+                    switch (cmd) {
+                    case CatCommandID::SetFreq:
+                        if (event.packet->dataLength == 10) {
+                            int64_t frequency;
+                            memcpy(&frequency, event.packet->data + 2, 8);
+                            g_Cat.set_freq(frequency);
+                        }
+                        break;
+                    case CatCommandID::SetCWTxFreq:
+                        if (event.packet->dataLength == 10) {
+                            int64_t frequency;
+                            memcpy(&frequency, event.packet->data + 2, 8);
+                            g_Cat.set_cw_tx_freq(frequency);
+                        }
+                        break;
+                    case CatCommandID::SetCWKeyerSpeed:
+                        if (event.packet->dataLength == 3) {
+                            uint8_t cw_speed;
+                            memcpy(&cw_speed, event.packet->data + 2, 1);
+                            g_Cat.set_cw_keyer_speed(cw_speed);
+                        }
+                        break;
+                    case CatCommandID::SetKeyerMode:
+                        if (event.packet->dataLength == 3) {
+                            uint8_t keyer_mode;
+                            memcpy(&keyer_mode, event.packet->data + 2, 1);
+                            g_Cat.set_cw_keyer_mode(KeyerMode(keyer_mode));
+                        }
+                        break;
+                    case CatCommandID::SetAMPControl:
+                        if (event.packet->dataLength == 10) {
+                            bool    enabled;
+                            int32_t delay, hang;
+                            memcpy(&enabled, event.packet->data + 2, 1);
+                            memcpy(&delay,   event.packet->data + 3, 4);
+                            memcpy(&hang,    event.packet->data + 7, 4);
+                            g_Cat.set_amp_control(enabled, delay, hang);
+                        }
+                        break;
+                    case CatCommandID::SetIQBalanceAndPower:
+                        if (event.packet->dataLength == 26) {
+                            double phase_balance_deg, amplitude_balance, power;
+                            memcpy(&phase_balance_deg,  event.packet->data + 2,  8);
+                            memcpy(&amplitude_balance,  event.packet->data + 10, 8);
+                            memcpy(&power,              event.packet->data + 18, 8);
+                            g_Cat.setIQBalanceAndPower(phase_balance_deg, amplitude_balance, power);
+                        }
+                        break;
+                    }
+                }
+                enet_packet_destroy(event.packet);
                 break;
             case ENET_EVENT_TYPE_DISCONNECT:
                 printf("%s disconnected.\n", static_cast<const Client*>(event.peer->data)->name.c_str());
-                // Reset client's information
+                // Reset client's information.
+                delete static_cast<const Client*>(event.peer->data);
                 event.peer->data = nullptr;
                 break;
             }
@@ -273,15 +324,13 @@ int enet_server_main()
         return EXIT_FAILURE;
     }
 
-//    atexit(enet_deinitialize);
-
     // b. Create a host using enet_host_create
     g_address.host = ENET_HOST_ANY;
     g_address.port = 1234;
 
     g_server = enet_host_create(&g_address, max_clients, max_channels, 0, 0);
 
-    if (g_server == NULL) {
+    if (g_server == nullptr) {
         fprintf(stderr, "An error occured while trying to create an ENet server host\n");
         exit(EXIT_FAILURE);
     }

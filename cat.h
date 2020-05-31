@@ -33,6 +33,29 @@
 #define IAMBIC_AUTOSPACE    (1 << 2)
 #define IAMBIC_RST_N        (1 << 7)
 
+enum class CatCommandID : uint16_t {
+	// Set local oscillator frequency in Hz.
+	// int64_t frequency
+	SetFreq,
+	// Set the CW TX frequency in Hz.
+	// int64_t frequency
+	SetCWTxFreq,
+	// Set the CW keyer speed in Words per Minute.
+	// Limited to <5, 45>
+	// uint8_t
+	SetCWKeyerSpeed,
+	// KeyerMode mode
+	// uint8_t
+	SetKeyerMode,
+	// Delay of the dit sent after dit played, to avoid hot switching of the AMP relay, in microseconds. Maximum time is 15ms.
+	// Relay hang after the last dit, in microseconds. Maximum time is 10 seconds.
+	// bool enabled, uint32_t delay, uint32_t hang
+	SetAMPControl,
+	// CW phase & amplitude balance and output power.
+	// double phase_balance_deg, double amplitude_balance, double power
+	SetIQBalanceAndPower,
+};
+
 class Cat {
 public:
 	Cat() {}

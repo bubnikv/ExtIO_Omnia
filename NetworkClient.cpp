@@ -1,6 +1,7 @@
 #include <enet/enet.h>
 
 #include "Config.h"
+#include "cat.h"
 #include "NetworkClient.h"
 #include "LC_ExtIO_Types.h"
 
@@ -52,12 +53,22 @@ void NetworkClient::stop()
 // Set local oscillator frequency in Hz.
 bool NetworkClient::set_freq(int64_t frequency)
 {
+    CatCommandID cmd { CatCommandID::SetFreq };
+    char buf[10];
+    memcpy(buf,     &cmd,       2);
+    memcpy(buf + 2, &frequency, 8);
+    this->send_packet(buf, sizeof(buf));
     return true;
 }
 
 // Set the CW TX frequency in Hz.
 bool NetworkClient::set_cw_tx_freq(int64_t frequency)
 {
+    CatCommandID cmd { CatCommandID::SetCWTxFreq };
+    char buf[10];
+    memcpy(buf,     &cmd,       2);
+    memcpy(buf + 2, &frequency, 8);
+    this->send_packet(buf, sizeof(buf));
     return true;
 }
 
@@ -65,11 +76,21 @@ bool NetworkClient::set_cw_tx_freq(int64_t frequency)
 // Limited to <5, 45>
 bool NetworkClient::set_cw_keyer_speed(int wpm)
 {
+    CatCommandID cmd { CatCommandID::SetCWKeyerSpeed };
+    char buf[3];
+    memcpy(buf,     &cmd,       2);
+    memcpy(buf + 2, &wpm,       1);
+    this->send_packet(buf, sizeof(buf));
     return true;
 }
 
 bool NetworkClient::set_cw_keyer_mode(KeyerMode mode)
 {
+    CatCommandID cmd { CatCommandID::SetCWKeyerSpeed };
+    char buf[3];
+    memcpy(buf,     &cmd,       2);
+    memcpy(buf + 2, &mode,      1);
+    this->send_packet(buf, sizeof(buf));
     return true;
 }
 
@@ -77,11 +98,25 @@ bool NetworkClient::set_cw_keyer_mode(KeyerMode mode)
 // Relay hang after the last dit, in microseconds. Maximum time is 10 seconds.
 bool NetworkClient::set_amp_control(bool enabled, int delay, int hang)
 {
+    CatCommandID cmd { CatCommandID::SetAMPControl };
+    char buf[10];
+    memcpy(buf,     &cmd,       2);
+    memcpy(buf + 2, &enabled,   1);
+    memcpy(buf + 3, &delay,     4);
+    memcpy(buf + 7, &hang,      4);
+    this->send_packet(buf, sizeof(buf));
     return true;
 }
 
 bool NetworkClient::setIQBalanceAndPower(double phase_balance_deg, double amplitude_balance, double power)
 {
+    CatCommandID cmd { CatCommandID::SetIQBalanceAndPower };
+    char buf[10];
+    memcpy(buf,      &cmd,                  2);
+    memcpy(buf + 2,  &phase_balance_deg,    8);
+    memcpy(buf + 10, &amplitude_balance,    8);
+    memcpy(buf + 18, &power,                8);
+    this->send_packet(buf, sizeof(buf));
     return true;
 }
 
@@ -117,7 +152,7 @@ void NetworkClient::run()
         // Pump packets prepared by the UI thread to enet.
         ::EnterCriticalSection(&m_mutex);
         for (ENetPacket* packet : m_queue)
-            enet_peer_send(peer, 0, packet);
+            enet_peer_send(peer, 1, packet);
         m_queue.clear();
         ::LeaveCriticalSection(&m_mutex);
 
@@ -156,12 +191,10 @@ void NetworkClient::run()
     }
 }
 
-/*
-void NetworkClient::send_packet()
+void NetworkClient::send_packet(char *buf, int buflen)
 {
-    ENetPacket* packet = enet_packet_create(message, strlen(message) + 1, ENET_PACKET_FLAG_RELIABLE);
+    this->send_packet(enet_packet_create(buf, buflen, ENET_PACKET_FLAG_RELIABLE));
 }
-*/
 
 void NetworkClient::send_packet(ENetPacket* packet)
 {

@@ -38,6 +38,7 @@ public:
 private:
 	void					run();
 	static DWORD WINAPI		thread_function(LPVOID lpParam);
+	void					send_packet(char* buf, int buflen);
 	void					send_packet(_ENetPacket *packet);
 
 	// Current audio thread handle.
