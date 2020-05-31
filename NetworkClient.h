@@ -45,6 +45,7 @@ private:
 	HANDLE					 m_hThread		= nullptr;
 	CRITICAL_SECTION		 m_mutex;
 	std::vector<_ENetPacket*> m_queue;
+	bool					 m_connected	= false;
 	// Flag to indicate the audio thread to stop.
 	volatile bool			 m_exit_thread	= false;
 };

@@ -48,11 +48,14 @@ void NetworkClient::stop()
         enet_packet_destroy(packet);
     m_queue.clear();
     m_hThread = nullptr;
+    m_connected = false;
 }
 
 // Set local oscillator frequency in Hz.
 bool NetworkClient::set_freq(int64_t frequency)
 {
+    if (! m_connected)
+        return false;
     CatCommandID cmd { CatCommandID::SetFreq };
     char buf[10];
     memcpy(buf,     &cmd,       2);
@@ -64,6 +67,8 @@ bool NetworkClient::set_freq(int64_t frequency)
 // Set the CW TX frequency in Hz.
 bool NetworkClient::set_cw_tx_freq(int64_t frequency)
 {
+    if (!m_connected)
+        return false;
     CatCommandID cmd { CatCommandID::SetCWTxFreq };
     char buf[10];
     memcpy(buf,     &cmd,       2);
@@ -76,6 +81,8 @@ bool NetworkClient::set_cw_tx_freq(int64_t frequency)
 // Limited to <5, 45>
 bool NetworkClient::set_cw_keyer_speed(int wpm)
 {
+    if (!m_connected)
+        return false;
     CatCommandID cmd { CatCommandID::SetCWKeyerSpeed };
     char buf[3];
     memcpy(buf,     &cmd,       2);
@@ -86,6 +93,8 @@ bool NetworkClient::set_cw_keyer_speed(int wpm)
 
 bool NetworkClient::set_cw_keyer_mode(KeyerMode mode)
 {
+    if (!m_connected)
+        return false;
     CatCommandID cmd { CatCommandID::SetCWKeyerSpeed };
     char buf[3];
     memcpy(buf,     &cmd,       2);
@@ -98,6 +107,8 @@ bool NetworkClient::set_cw_keyer_mode(KeyerMode mode)
 // Relay hang after the last dit, in microseconds. Maximum time is 10 seconds.
 bool NetworkClient::set_amp_control(bool enabled, int delay, int hang)
 {
+    if (!m_connected)
+        return false;
     CatCommandID cmd { CatCommandID::SetAMPControl };
     char buf[10];
     memcpy(buf,     &cmd,       2);
@@ -110,6 +121,8 @@ bool NetworkClient::set_amp_control(bool enabled, int delay, int hang)
 
 bool NetworkClient::setIQBalanceAndPower(double phase_balance_deg, double amplitude_balance, double power)
 {
+    if (!m_connected)
+        return false;
     CatCommandID cmd { CatCommandID::SetIQBalanceAndPower };
     char buf[10];
     memcpy(buf,      &cmd,                  2);
@@ -163,6 +176,7 @@ void NetworkClient::run()
         if (eventStatus > 0) {
             switch (event.type) {
             case ENET_EVENT_TYPE_CONNECT:
+                m_connected = true;
                 printf("(Client) We got a new connection from %x\n", event.peer->address.host);
                 break;
 
@@ -180,6 +194,7 @@ void NetworkClient::run()
 //                printf("(Client) %s disconnected.\n", event.peer->data);
                 // Reset client's information
 //                event.peer->data = NULL;
+                m_connected = false;
                 enet_host_connect(client, &address, 2, 0);
                 if (peer == NULL) {
                     fprintf(stderr, "No available peers for initializing an ENet connection");

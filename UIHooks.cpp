@@ -607,6 +607,8 @@ void UIHooks::sort_lower_right_windows()
 
 void UIHooks::unhook_callbacks()
 {
+	if (g_uihooks == nullptr)
+		return;
 	// Deregister the callbacks.
 	if (g_uihooks->hookBefore != nullptr)
 		UnhookWindowsHookEx(g_uihooks->hookBefore);

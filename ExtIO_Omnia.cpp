@@ -126,7 +126,7 @@ bool EXTIO_API OpenHW(void)
 	if (g_config.network_client && g_config.network_server_name.empty()) {
 		::MessageBoxA(nullptr, "Network server address not configured.\nSet the network address first using the ExtIO dialog.",
 			"ExtIO_Omnia error", MB_OK | MB_ICONERROR);
-		return false;
+		//return false;
 	}
 
 	if (pfnCallback) {
