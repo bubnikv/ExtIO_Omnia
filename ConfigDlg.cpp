@@ -4,6 +4,7 @@
 
 #include "cat.h"
 #include "Config.h"
+#include "NetworkClient.h"
 #include "resource.h"
 
 static HWND		 g_hwndConfigDlg = nullptr;
@@ -12,7 +13,8 @@ static HINSTANCE g_hInstance	 = nullptr;
 static std::vector<std::pair<std::string, int>> g_pages = { 
 	{ "TX Power",		IDD_PAGE_POWER		}, 
 	{ "TX IQ Balance",	IDD_PAGE_IQ_BALANCE },
-	{ "Amplifier",		IDD_PAGE_AMP }
+	{ "Amplifier",		IDD_PAGE_AMP },
+	{ "Network",		IDD_PAGE_NETWORK },
 };
 
 class ConfigDlg
@@ -20,7 +22,10 @@ class ConfigDlg
 public:
 	static void update_tx_waveform()
 	{
-		g_Cat.setIQBalanceAndPower(g_config.tx_iq_balance_phase_correction, g_config.tx_iq_balance_amplitude_correction, g_config.tx_power);
+		if (g_config.network_client)
+			g_network_client.setIQBalanceAndPower(g_config.tx_iq_balance_phase_correction, g_config.tx_iq_balance_amplitude_correction, g_config.tx_power);
+		else
+			g_Cat.setIQBalanceAndPower(g_config.tx_iq_balance_phase_correction, g_config.tx_iq_balance_amplitude_correction, g_config.tx_power);
 	}
 
 	static void init_power_tab(HWND hwnd)
@@ -196,7 +201,10 @@ public:
 			SendMessage(hwnd, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)pos);
 		}
 		g_config.tx_delay = (int)pos * 100;
-		g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+		if (g_config.network_client)
+			g_network_client.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+		else
+			g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
 		update_tx_delay_text(GetParent(hwnd));
 	}
 
@@ -209,12 +217,29 @@ public:
 			SendMessage(hwnd, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)pos);
 		}
 		g_config.tx_hang = (int)pos * 1000;
-		g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+		if (g_config.network_client)
+			g_network_client.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+		else
+			g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
 		update_tx_hold_text(GetParent(hwnd));
+	}
+
+	static void init_network_tab(HWND hwnd)
+	{
+		::CheckDlgButton(hwnd, IDC_CHECK_NETWORK, g_config.network_client ? BST_CHECKED : BST_UNCHECKED);
+		::EnableWindow(GetDlgItem(hwnd, IDC_NETADDR), g_config.network_client);
+		::EnableWindow(GetDlgItem(hwnd, IDC_NETPORT), g_config.network_client);
+		::SetDlgItemTextA(hwnd, IDC_NETADDR, g_config.network_server_name.c_str());
+		::SetDlgItemTextA(hwnd, IDC_NETPORT, std::to_string(g_config.network_server_port).c_str());
 	}
 
 	static BOOL CALLBACK tab_dialog_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
+/*
+		char buf[2048];
+		sprintf(buf, "Message hwnd: %p, msg: %d, wParam: %d, lParam: %d\n", hwnd, int(uMsg), int(wParam), int(lParam));
+		OutputDebugStringA(buf);
+*/
 		switch (uMsg)
 		{
 		case WM_INITDIALOG:
@@ -230,6 +255,9 @@ public:
 			case IDD_PAGE_AMP:
 				init_amp_tab(hwnd);
 				break;
+			case IDD_PAGE_NETWORK:
+				init_network_tab(hwnd);
+				break;
 			default:
 				break;
 			}
@@ -241,12 +269,35 @@ public:
 		case WM_COMMAND:
 		{
 			HWND hwnd_control = (HWND)lParam;
-			int  control_id   = GetDlgCtrlID(hwnd_control);
-			if (control_id == IDC_IQ_BALANCE_RESET) {
+			int  control_id   = LOWORD(wParam);
+			int  notification = HIWORD(wParam);
+			switch (control_id) {
+			case IDC_IQ_BALANCE_RESET:
 				g_config.tx_iq_balance_amplitude_correction = 1.;
 				g_config.tx_iq_balance_phase_correction = 0.;
 				init_iq_balance_tab(GetParent(hwnd_control));
+				return TRUE;
+			case IDC_CHECK_NETWORK:
+				g_config.network_client = SendDlgItemMessage(hwnd, IDC_CHECK_NETWORK, BM_GETCHECK, 0, 0) == BST_CHECKED;
+				::EnableWindow(GetDlgItem(hwnd, IDC_NETADDR), g_config.network_client);
+				::EnableWindow(GetDlgItem(hwnd, IDC_NETPORT), g_config.network_client);
+				return TRUE;
+			case IDC_NETADDR:
+			{
+				char buf[2048];
+				::GetWindowTextA(GetDlgItem(hwnd, IDC_NETADDR), buf, 2048);
+				g_config.network_server_name = buf;
+				return TRUE;
 			}
+			case IDC_NETPORT:
+			{
+				char buf[2048];
+				::GetWindowTextA(GetDlgItem(hwnd, IDC_NETPORT), buf, 2048);
+				g_config.network_server_port = atoi(buf);
+				return TRUE;
+			}
+			}
+			return TRUE;
 		}
 		case WM_HSCROLL:
 			switch (GetDlgCtrlID((HWND)lParam)) {

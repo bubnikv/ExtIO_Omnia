@@ -326,7 +326,8 @@ void Audio::initializeAudioClient(IMMDevice *device, WAVEFORMATEX *wfx, IAudioCl
 			EXIT_ON_HR_ERROR(errstr + "IAudioClient::GetBufferSize");
 			break;
 		}
-		else EXIT_ERROR(errstr + "IAudioClient::Initialize");
+		else 
+			EXIT_ERROR(errstr + "IAudioClient::Initialize");
 		// reset for a retry
 		SAFE_RELEASE(*audioClient);
 		hr = device->Activate(

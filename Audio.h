@@ -86,9 +86,9 @@ private:
 	bool					 transmitCallbackMode = false;
 
 	// Current audio thread handle.
-	HANDLE					 m_hThread;
+	HANDLE					 m_hThread			  = nullptr;
 	// Flag to indicate the audio thread to stop.
-	volatile bool			 m_exit_thread;
+	volatile bool			 m_exit_thread		  = false;
 
 	std::vector<float>		 m_receive_buffer;
 	std::vector<float>		 m_receive_buffer_prev;

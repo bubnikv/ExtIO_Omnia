@@ -50,6 +50,13 @@ int Cat::findPeaberryDevice()
 			error = "Failed to init libusb"; // rc = %i\n", err;
 			return -1;
 		}
+#if 0
+		err = libusb_set_option(m_libusb_context, LIBUSB_OPTION_USE_USBDK);
+		if (err < 0) {
+			error = "Failed to set USBDK backend"; // rc = %i\n", err;
+			return -1;
+		}
+#endif
 	}
 
 	libusb_device **devs = nullptr;
@@ -75,6 +82,11 @@ int Cat::findPeaberryDevice()
 			libusb_device_handle *dev_handle = nullptr;
 			if (libusb_open(dev, &dev_handle) == 0) {
 				unsigned char buffer[2048];
+#if 0
+				libusb_get_string_descriptor_ascii(dev_handle, desc.iManufacturer, buffer, sizeof(buffer));
+				libusb_get_descriptor(dev_handle, LIBUSB_DT_HID, 0, buffer, sizeof(buffer));
+				libusb_get_descriptor(dev_handle, LIBUSB_DT_REPORT, 0, buffer, sizeof(buffer));
+#endif
 				libusb_get_string_descriptor_ascii(dev_handle, desc.iManufacturer, buffer, sizeof(buffer));
 				if (strcmp((const char*)buffer, VENDOR_NAME_OBDEV) == 0) {
 					libusb_get_string_descriptor_ascii(dev_handle, desc.iProduct, buffer, sizeof(buffer));

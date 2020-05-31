@@ -41,6 +41,10 @@ struct Config
 	bool		amp_enabled							= false;
 	int			tx_delay							= 8000; // 8ms
 	int			tx_hang								= 500000; // 0.5s
+
+	bool		network_client						= false;
+	std::string network_server_name;
+	int			network_server_port					= 1234;
 };
 
 extern Config g_config;

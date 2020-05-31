@@ -8,6 +8,7 @@
 
 #include "cat.h"
 #include "Config.h"
+#include "NetworkClient.h"
 #include "UIHooks.h"
 #include "resource.h"
 
@@ -114,7 +115,10 @@ void UIHooks::set_keyer_speed(unsigned int speed)
 	::SetWindowText(this->hwndKeyerSpeedText, buf);
 	::SendMessage(this->hwndKeyerSpeedTrackBar, TBM_SETPOS, (WPARAM)TRUE, speed);
 	g_config.keyer_wpm = speed;
-	g_Cat.set_cw_keyer_speed(speed);
+	if (g_config.network_client)
+		g_network_client.set_cw_keyer_speed(speed);
+	else
+		g_Cat.set_cw_keyer_speed(speed);
 }
 
 BOOL CALLBACK UIHooks::EnumTopLevelWindowsProc(HWND hwnd, LPARAM lparam)
@@ -193,42 +197,47 @@ BOOL CALLBACK UIHooks::EnumPanelsWindowsProc(HWND hwnd, LPARAM lparam)
 LRESULT CALLBACK UIHooks::HookProcBefore(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	LPCWPSTRUCT cwp = (LPCWPSTRUCT)lParam;
-	if (cwp->hwnd != nullptr && cwp->hwnd == g_uihooks->hwndMyPanel) {
-		printf("Hu");
-	}
-	if (cwp->message == WM_SIZE) {
-		if (cwp->hwnd == g_uihooks->hwndMainFrame ||
-			cwp->hwnd == g_uihooks->hwndLower ||
-			cwp->hwnd == g_uihooks->hwndLowerLeft ||
-			cwp->hwnd == g_uihooks->hwndLowerRight ||
-			cwp->hwnd == g_uihooks->hwndUpper)
+	if (g_uihooks &&
+		(cwp->hwnd == g_uihooks->hwndMainFrame	||
+		 cwp->hwnd == g_uihooks->hwndLower		||
+		 cwp->hwnd == g_uihooks->hwndLowerLeft	||
+		 cwp->hwnd == g_uihooks->hwndLowerRight	||
+		 cwp->hwnd == g_uihooks->hwndUpper))
+	{
+		switch (cwp->message) {
+		case WM_SIZE:
 			// Update layout when idle.
 			g_uihooks->m_layout_invalid = true;
-	} else if (cwp->message == WM_SIZING) {
-	} else if (cwp->message == WM_COMMAND) {
-		if ((HWND)cwp->lParam == g_uihooks->hwndButtonRit)
-			g_uihooks->splitMode = (g_uihooks->splitMode == SPLIT_RIT) ? SPLIT_OFF : SPLIT_RIT;
-		else if ((HWND)cwp->lParam == g_uihooks->hwndButtonXit)
-			g_uihooks->splitMode = (g_uihooks->splitMode == SPLIT_XIT) ? SPLIT_OFF : SPLIT_XIT;
-		::InvalidateRect(g_uihooks->hwndButtonRit, nullptr, false);
-		::InvalidateRect(g_uihooks->hwndButtonXit, nullptr, false);
-		g_uihooks->show_recording_panel(g_uihooks->splitMode == SPLIT_OFF);
-		::ShowWindow(g_uihooks->hwndMyRitXitPanel, (g_uihooks->splitMode == SPLIT_OFF) ? SW_HIDE : SW_SHOW);
-	} else if (cwp->message == WM_DRAWITEM && g_uihooks != nullptr) {
-		if (cwp->wParam == ID_BUTTON_RIT || cwp->wParam == ID_BUTTON_XIT) {
-			DRAWITEMSTRUCT *dis = (DRAWITEMSTRUCT*)cwp->lParam;
-			HWND hwnd = dis->hwndItem;
-			HDC  hdc = dis->hDC;
-			SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
-			bool enabled = g_uihooks->splitMode == ((cwp->wParam == ID_BUTTON_RIT) ? SPLIT_RIT : SPLIT_XIT);
-			COLORREF clrBg = enabled ? RGB(0x18, 0x0a0, 0x0f4) : RGB(0, 0x2c, 0x6b);
-			SetTextColor(hdc, enabled ? RGB(0x0ff, 0x0ff, 0x0ff) : RGB(0x80, 0x80, 0x80));
-			HBRUSH hBrush = CreateSolidBrush(clrBg);
-			FillRect(hdc, &dis->rcItem, hBrush);
-			DeleteObject(hBrush);
-			SetBkColor(hdc, clrBg);
-			DrawTextA(hdc, (cwp->wParam == ID_BUTTON_RIT) ? "RIT" : "XIT", -1, &dis->rcItem, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
-			return TRUE;
+			break;
+		case WM_SIZING:
+			break;
+		case WM_COMMAND:
+			if ((HWND)cwp->lParam == g_uihooks->hwndButtonRit)
+				g_uihooks->splitMode = (g_uihooks->splitMode == SPLIT_RIT) ? SPLIT_OFF : SPLIT_RIT;
+			else if ((HWND)cwp->lParam == g_uihooks->hwndButtonXit)
+				g_uihooks->splitMode = (g_uihooks->splitMode == SPLIT_XIT) ? SPLIT_OFF : SPLIT_XIT;
+			::InvalidateRect(g_uihooks->hwndButtonRit, nullptr, false);
+			::InvalidateRect(g_uihooks->hwndButtonXit, nullptr, false);
+			g_uihooks->show_recording_panel(g_uihooks->splitMode == SPLIT_OFF);
+			::ShowWindow(g_uihooks->hwndMyRitXitPanel, (g_uihooks->splitMode == SPLIT_OFF) ? SW_HIDE : SW_SHOW);
+			break;
+		case WM_DRAWITEM:
+			if (cwp->wParam == ID_BUTTON_RIT || cwp->wParam == ID_BUTTON_XIT) {
+				DRAWITEMSTRUCT *dis = (DRAWITEMSTRUCT*)cwp->lParam;
+				HWND hwnd = dis->hwndItem;
+				HDC  hdc = dis->hDC;
+				SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
+				bool enabled = g_uihooks->splitMode == ((cwp->wParam == ID_BUTTON_RIT) ? SPLIT_RIT : SPLIT_XIT);
+				COLORREF clrBg = enabled ? RGB(0x18, 0x0a0, 0x0f4) : RGB(0, 0x2c, 0x6b);
+				SetTextColor(hdc, enabled ? RGB(0x0ff, 0x0ff, 0x0ff) : RGB(0x80, 0x80, 0x80));
+				HBRUSH hBrush = CreateSolidBrush(clrBg);
+				FillRect(hdc, &dis->rcItem, hBrush);
+				DeleteObject(hBrush);
+				SetBkColor(hdc, clrBg);
+				DrawTextA(hdc, (cwp->wParam == ID_BUTTON_RIT) ? "RIT" : "XIT", -1, &dis->rcItem, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+				return TRUE;
+			}
+			break;
 		}
 	}
 	return CallNextHookEx(nullptr, nCode, wParam, lParam);
@@ -284,11 +293,17 @@ LRESULT CALLBACK UIHooks::MyPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
 				else if (mode >= 3)
 					mode = 2;
 				g_config.keyer_mode = (KeyerMode)mode;
-				g_Cat.set_cw_keyer_mode((KeyerMode)mode);
+				if (g_config.network_client)
+					g_network_client.set_cw_keyer_mode((KeyerMode)mode);
+				else
+					g_Cat.set_cw_keyer_mode((KeyerMode)mode);
 			}
 		} else if ((HWND)lParam == g_uihooks->hwndAmpButton) {
 			g_config.amp_enabled = !g_config.amp_enabled; //  SendMessage(g_uihooks->hwndAmpButton, BM_GETCHECK, 0, 0) != 0;
-			g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+			if (g_config.network_client)
+				g_network_client.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
+			else
+				g_Cat.set_amp_control(g_config.amp_enabled, g_config.tx_delay, g_config.tx_hang);
 		}
 		break;
 	case WM_HSCROLL:
@@ -337,7 +352,6 @@ LRESULT CALLBACK UIHooks::MyPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
 			FillRect(hdc, &dis->rcItem, hBrush);
 			DeleteObject(hBrush);
 			SetBkColor(hdc, clrBg);
-			char buf[32];
 			DrawTextA(hdc, "AMP", -1, &dis->rcItem, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
 			return TRUE;
 		}

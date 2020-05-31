@@ -1,4 +1,3 @@
-// #define WIN32_LEAN_AND_MEAN             // Selten verwendete Teile der Windows-Header nicht einbinden.
 #include <windows.h>
 #include <commctrl.h>
 #include <string.h>
@@ -10,6 +9,7 @@
 #include "cat.h"
 #include "Config.h"
 #include "ConfigDlg.h"
+#include "NetworkClient.h"
 #include "UIHooks.h"
 
 #pragma warning(disable : 4996)
@@ -86,14 +86,29 @@ bool __declspec(dllexport) __stdcall InitHW(char *name, char *model, int& type)
 		giAgcIdx = giDefaultAgcIdx;
 		giThrIdx = giDefaultThrIdx;
 
-		g_Audio.init();
-		if (! g_Audio.get_error().empty()) {
-			::MessageBoxA(nullptr, g_Audio.get_error().c_str(), "ExtIO_Omnia", MB_OK | MB_ICONERROR);
-		} else {
-			g_Cat.init();
-			if (! g_Cat.get_error().empty())
-				::MessageBoxA(nullptr, g_Cat.get_error().c_str(), "ExtIO_Omnia", MB_OK | MB_ICONERROR);
+		if (! g_config.network_client) {
+			bool failed = false;
+			g_Audio.init();
+			if (! g_Audio.get_error().empty()) {
+				::MessageBoxA(nullptr, g_Audio.get_error().c_str(), "ExtIO_Omnia", MB_OK | MB_ICONERROR);
+				failed = true;
+			} else {
+				g_Cat.init();
+				if (! g_Cat.get_error().empty()) {
+					::MessageBoxA(nullptr, g_Cat.get_error().c_str(), "ExtIO_Omnia", MB_OK | MB_ICONERROR);
+					failed = true;
+				}
+			}
+			if (failed) {
+				if (::MessageBoxA(nullptr, "Connection to Omnia hardware failed.\nDo you want to connect to a network server?", 
+						"ExtIO_Omnia", MB_YESNOCANCEL) == IDYES) {
+					g_config.network_client = true;
+				}
+			}
 		}
+
+		if (g_config.network_client)
+			g_network_client.init();
 
 		gbInitHW = true;
 	}
@@ -108,6 +123,12 @@ bool EXTIO_API OpenHW(void)
 	// .....if no graphical interface, delete the following statement
 	//::SetWindowPos(F->handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
+	if (g_config.network_client && g_config.network_server_name.empty()) {
+		::MessageBoxA(nullptr, "Network server address not configured.\nSet the network address first using the ExtIO dialog.",
+			"ExtIO_Omnia error", MB_OK | MB_ICONERROR);
+		return false;
+	}
+
 	if (pfnCallback) {
 		pfnCallback(-1, extHw_Changed_ATT, 0.0F, 0);
 		// Let HDSDR swap the left / right IQ channels for the Omnia.
@@ -115,9 +136,11 @@ bool EXTIO_API OpenHW(void)
 		pfnCallback(-1, extHw_TX_SwapIQ_ON, 0.0F, 0);
 	}
 
-	g_Cat.set_cw_keyer_mode(g_config.keyer_mode);
-	g_Cat.set_cw_keyer_speed(g_config.keyer_wpm);
-	g_Cat.setIQBalanceAndPower(g_config.tx_iq_balance_phase_correction, g_config.tx_iq_balance_amplitude_correction, g_config.tx_power);
+	if (! g_config.network_client) {
+		g_Cat.set_cw_keyer_mode(g_config.keyer_mode);
+		g_Cat.set_cw_keyer_speed(g_config.keyer_wpm);
+		g_Cat.setIQBalanceAndPower(g_config.tx_iq_balance_phase_correction, g_config.tx_iq_balance_amplitude_correction, g_config.tx_power);
+	}
 
 	// in the above statement, F->handle is the window handle of the panel displayed 
 	// by the DLL, if such a panel exists
@@ -141,9 +164,13 @@ int64_t EXTIO_API StartHW64(int64_t LOfreq)
 
 	g_UIHooks.initialize();
 
-	g_Audio.stop();
-	SetHWLO64(LOfreq);
-	g_Audio.start();
+	if (g_config.network_client) {
+		g_network_client.start();
+	} else {
+		g_Audio.stop();
+		SetHWLO64(LOfreq);
+		g_Audio.start();
+	}
 	// number of complex elements returned each
 	// invocation of the callback routine
 	return EXT_BLOCKLEN;
@@ -153,7 +180,11 @@ int64_t EXTIO_API StartHW64(int64_t LOfreq)
 extern "C"
 void EXTIO_API StopHW(void)
 {
-	g_Audio.stop();
+	if (g_config.network_client) {
+		g_network_client.stop();
+	} else {
+		g_Audio.stop();
+	}
 	return;  // nothing to do with this specific HW
 }
 
@@ -164,6 +195,7 @@ void EXTIO_API CloseHW(void)
 	// ..... here you can shutdown your graphical interface, if any............
 	g_UIHooks.destroy();
 	destroy_config_dialog();
+	g_network_client.destroy();
 	if (gbInitHW)
 	{
 		/* close port */
@@ -184,7 +216,10 @@ int64_t EXTIO_API SetHWLO64(int64_t LOfreq)
 {
 	// take frequency
 	glLOfreq = LOfreq;
-	g_Cat.set_freq(LOfreq);
+	if (g_config.network_client)
+		g_network_client.set_freq(LOfreq);
+	else
+		g_Cat.set_freq(LOfreq);
 	return 0;
 }
 
@@ -241,7 +276,10 @@ extern "C" void EXTIO_API ModeChanged(char mode)
 
 extern "C" void EXTIO_API TuneChanged64(int64_t freq)
 {
-	g_Cat.set_cw_tx_freq(freq + CW_IQ_TONE_OFFSET);
+	if (g_config.network_client)
+		g_network_client.set_cw_tx_freq(freq + CW_IQ_TONE_OFFSET);
+	else
+		g_Cat.set_cw_tx_freq(freq + CW_IQ_TONE_OFFSET);
 }
 
 extern "C" void EXTIO_API TuneChanged(long freq)

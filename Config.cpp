@@ -31,6 +31,12 @@ std::string Config::serialize() const
 	out += buf;
 	sprintf(buf, "tx_hang=%d\n", this->tx_hang);
 	out += buf;
+	sprintf(buf, "network_client=%d\n", int(this->network_client));
+	out += buf;
+	sprintf(buf, "network_server_name=%s\n", this->network_server_name.c_str());
+	out += buf;
+	sprintf(buf, "network_server_port=%d\n", this->network_server_port);
+	out += buf;
 	return out;
 }
 
@@ -66,6 +72,12 @@ void Config::deserialize(const char *str)
 				this->tx_delay = atoi(value.c_str());
 			else if (key == "tx_hang")
 				this->tx_hang = atoi(value.c_str());
+			else if (key == "network_client")
+				this->network_client = value == "1";
+			else if (key == "network_server_name")
+				this->network_server_name = value;
+			else if (key == "network_server_port")
+				this->network_server_port = atoi(value.c_str());
 		}
 		p = endptr;
 		while (*p == '\n')
