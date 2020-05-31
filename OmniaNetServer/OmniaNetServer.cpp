@@ -246,6 +246,8 @@ extern "C" {
                 break;
             }
         }
+
+        return 0;
     }
 }
 
