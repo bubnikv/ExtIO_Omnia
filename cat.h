@@ -17,16 +17,27 @@
 #ifndef CAT_H
 #define CAT_H
 
+//#define CAT_LIBUSB
+
+#define CAT_ICV
+
+#ifdef CAT_ICV
+#include "serial/serial.h"
+#endif // CAT_ICV
+
 #include <string>
 #include <cstdint>
+#include <memory>
 
+#ifdef CAT_LIBUSB
 #include "libusb/libusb.h"
+#endif // CAT_LIBUSB
 
 #include "Config.h"
 
-#define USBDEV_SHARED_VENDOR    0x16C0  // VOTI  VID
-#define USBDEV_SHARED_PRODUCT   0x05DC  // OBDEV PID 
-#define VENDOR_NAME_OBDEV		"www.obdev.at"
+#define USBDEV_SHARED_VENDOR    0x0483  // STMicroelectronics  VID
+#define USBDEV_SHARED_PRODUCT   0xA34C  // QRP Labs QMX Transceiver PID 
+#define VENDOR_NAME_OBDEV		"QRP Labs"
 
 #define IAMBIC_MODE_B       (1 << 0)
 #define IAMBIC_SKEY         (1 << 1)
@@ -84,9 +95,16 @@ private:
 	int findPeaberryDevice();
 	std::string readUsbString(struct usb_dev_handle *udh, uint8_t iDesc);
 
+#ifdef CAT_LIBUSB
 	libusb_context			*m_libusb_context = nullptr;
 	libusb_device			*m_libusb_device  = nullptr;
 	libusb_device_handle	*m_libusb_device_handle = nullptr;
+#endif // CAT_LIBUSB
+
+#ifdef CAT_ICV
+	std::string                     m_port;
+	std::unique_ptr<serial::Serial>	m_serial;
+#endif // CAT_ICV
 
 	int64_t freqChangeMark = 0;
 	int64_t currentFreq = 0;

@@ -206,7 +206,7 @@ void Audio::findPeaberry(IMMDeviceEnumerator *pEnumerator,
 		std::wstring devName(varName.pwszVal);
 
 		SAFE_RELEASE(pProps);
-		if (devName.find(L"Peaberry Radio") != std::wstring::npos) {
+		if (devName.find(L"QMX") != std::wstring::npos) {
 			*device = pDevice;
 			pDevice = NULL;
 			break;
@@ -224,8 +224,8 @@ void Audio::findPeaberry(IMMDeviceEnumerator *pEnumerator,
 	wavex->Format.nSamplesPerSec = SAMPLE_RATE;
 	wavex->Format.nChannels = 2;
 	wavex->dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-	wavex->Format.wBitsPerSample = 16;
-	wavex->Samples.wValidBitsPerSample = 16;
+	wavex->Format.wBitsPerSample = 24;
+	wavex->Samples.wValidBitsPerSample = 24;
 	wavex->Format.nBlockAlign = (wavex->Format.wBitsPerSample >> 3) * wavex->Format.nChannels;
 	wavex->Format.nAvgBytesPerSec = wavex->Format.nBlockAlign * wavex->Format.nSamplesPerSec;
 	wavex->Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
@@ -383,7 +383,7 @@ void Audio::run()
 		dwMilliseconds = 1;
 	timeBeginPeriod(dwMilliseconds);
 
-	m_receive_buffer.assign((EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) * 2, 0.f);
+	m_receive_buffer.assign((EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) * 2, 0);
 	m_receive_buffer_cnt = 0;
 
 	// 2 milliseconds
@@ -442,17 +442,20 @@ static void hdsdr_mute(bool mute)
 void Audio::doReceive()
 {
 	HRESULT hr;
-	INT16 *buf;
+	BYTE *buf;
 	UINT32 numFramesToRead;
 	DWORD dwFlags;
-	hr = this->receiveCaptureClient->GetBuffer((BYTE**)&buf, &numFramesToRead, &dwFlags, NULL, NULL);
+	hr = this->receiveCaptureClient->GetBuffer(&buf, &numFramesToRead, &dwFlags, NULL, NULL);
 	if (!numFramesToRead || FAILED(hr)) return;
-	int samples = numFramesToRead * 2;
 	// Process the receive buffer.
 	while (numFramesToRead > 0) {
 		while (numFramesToRead > 0 && m_receive_buffer_cnt < EXT_BLOCKLEN + MUTE_ENVELOPE_LEN + ZEROS_TO_MUTE) {
-			m_receive_buffer[m_receive_buffer_cnt * 2] = *buf++;
-			m_receive_buffer[m_receive_buffer_cnt * 2 + 1] = *buf++;
+			for (int i = 0 ; i < 2; ++ i) {
+				int32_t w = (int32_t)((buf[2] << 24) | (buf[1] << 16) | (buf[0] << 8)) >> 8;
+				buf += 3;
+				m_receive_buffer[m_receive_buffer_cnt * 2] = w >> 8;
+//				m_receive_buffer[m_receive_buffer_cnt * 2] = (int16_t)w;
+			}
 			++m_receive_buffer_cnt;
 			--numFramesToRead;
 		}

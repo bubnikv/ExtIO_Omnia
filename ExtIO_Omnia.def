@@ -34,6 +34,10 @@ EXPORTS
     GetActualAttIdx                = _GetActualAttIdx@0
     SetAttenuator                  = _SetAttenuator@4
 
+    ActivateTx                     = _ActivateTx@8
+    SetModeRxTx                    = _SetModeRxTx@4
+    TxSamples                      = _TxSamples@12
+
     ExtIoGetAGCs                   = _ExtIoGetAGCs@8
     ExtIoGetActualAGCidx           = _ExtIoGetActualAGCidx@0
     ExtIoSetAGC                    = _ExtIoSetAGC@4

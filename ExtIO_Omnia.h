@@ -47,6 +47,13 @@ extern "C" int EXTIO_API GetAttenuators(int idx, float * attenuation);  // fill 
 extern "C" int EXTIO_API GetActualAttIdx(void);                          // returns -1 on error
 extern "C" int EXTIO_API SetAttenuator(int idx);                       // returns != 0 on error
 
+extern "C" int EXTIO_API SetModeRxTx(int modeRxTx);             // see enum extHw_ModeRxTxT
+
+// generation and transmission of I/Q samples for TX mode requires activation of the ExtIO DLL
+extern "C" int EXTIO_API ActivateTx(int magicA, int magicB);
+extern "C" int EXTIO_API SetModeRxTx(int modeRxTx);
+extern "C" void EXTIO_API TxSamples(int status, int numIQsamples, const short* interleavedIQ);
+
 extern "C" int EXTIO_API ExtIoGetAGCs(int agc_idx, char * text);
 extern "C" int EXTIO_API ExtIoGetActualAGCidx(void);
 extern "C" int EXTIO_API ExtIoSetAGC(int agc_idx);

@@ -378,6 +378,26 @@ int EXTIO_API SetAttenuator( int atten_idx )
 	return 1;	// ERROR
 }
 
+extern "C"
+int EXTIO_API ActivateTx(int magicA, int magicB) {
+
+	if ((magicA != -1 || magicB != -1) && pfnCallback) {
+		//code from ExtIO_Si570.dll
+		pfnCallback((magicA ^ 0xA85EF5E1) + magicB + 0x6D276F, (magicB ^ 0x57A10A1E) + magicA + 0x3F5005D, 0.0, 0);
+	}
+	return 0;
+}
+
+extern "C"
+int EXTIO_API SetModeRxTx(int modeRxTx) {
+
+	//mode 0 rx  mode 1 tx
+	return 0;
+}
+
+extern "C"
+void EXTIO_API TxSamples(int status, int numIQsamples, const short* interleavedIQ) {
+}
 
 //---------------------------------------------------------------------------
 

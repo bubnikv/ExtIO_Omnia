@@ -20,7 +20,7 @@
 #define ID_BUTTON_RIT		(ID_UIHOOKS_FIRST + 4)
 #define ID_BUTTON_XIT		(ID_UIHOOKS_FIRST + 5)
 
-static wchar_t *keyer_mode_names[] = { L"Straight Key", L"Iambic A", L"Iambic B" };
+static const wchar_t *keyer_mode_names[] = { L"Straight Key", L"Iambic A", L"Iambic B" };
 
 static UIHooks *g_uihooks = nullptr;
 extern HINSTANCE g_hInstance;
@@ -463,6 +463,9 @@ void UIHooks::update_layout()
 {
 	if (this->hwndMyPanel == nullptr)
 		create_my_panel();
+	::ShowScrollBar(hwndMainFrame, SB_BOTH, false);
+	::ShowScrollBar(hwndMainFrame, SB_HORZ, false);
+	::ShowScrollBar(hwndMainFrame, SB_VERT, false);
 	if (::IsWindowVisible(this->hwndLower) && ::IsWindowVisible(this->hwndLowerLeft)) {
 		// Shrink the bottom right waterfall to leave space for my own buttons.
 		RECT clientRect;

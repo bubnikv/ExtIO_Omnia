@@ -18,6 +18,8 @@
 
 #include <vector>
 #include <cfloat>
+#include <string_view>
+#include <charconv>
 
 bool Cat::init()
 {
@@ -44,6 +46,7 @@ bool Cat::init()
 
 int Cat::findPeaberryDevice()
 {
+#ifdef CAT_LIBUSB
 	if (m_libusb_context == nullptr) {
 		int err = libusb_init(&m_libusb_context);
 		if (err < 0) {
@@ -90,7 +93,7 @@ int Cat::findPeaberryDevice()
 				libusb_get_string_descriptor_ascii(dev_handle, desc.iManufacturer, buffer, sizeof(buffer));
 				if (strcmp((const char*)buffer, VENDOR_NAME_OBDEV) == 0) {
 					libusb_get_string_descriptor_ascii(dev_handle, desc.iProduct, buffer, sizeof(buffer));
-					if (strcmp((const char*)buffer, "Peaberry SDR") == 0) {
+					if (strcmp((const char*)buffer, "QMX Transceiver") == 0) {
 						if (qtyfound == 0) {
 							buffer[0] = 0;
 							libusb_get_string_descriptor_ascii(dev_handle, desc.iSerialNumber, buffer, sizeof(buffer));
@@ -114,8 +117,49 @@ int Cat::findPeaberryDevice()
 				libusb_close(dev_handle);
 		}
 	}
-
 	return qtyfound;
+#endif // CAT_LIBUSB
+
+#ifdef CAT_ICV
+	static constexpr std::string_view description_prefix = "USB Serial Device ";
+	std::string port1, port2, port3;
+	for (serial::PortInfo device : serial::list_ports())		
+		if (const std::string_view desc{ device.description }; 
+			desc.size() >= description_prefix.size() && desc.substr(0, description_prefix.size()) == description_prefix) {
+			if (device.hardware_id == "USB\\VID_0483&PID_A34C&REV_0100&MI_05")
+				port1 = device.port;
+			else if (device.hardware_id == "USB\\VID_0483&PID_A34C&REV_0100&MI_00")
+				port2 = device.port;
+			else if (device.hardware_id == "USB\\VID_0483&PID_A34C&REV_0100&MI_07")
+				port3 = device.port;
+		}
+	std::vector<std::string> ports;
+	if (! port1.empty())
+		ports.emplace_back(port1);
+	if (! port2.empty())
+		ports.emplace_back(port2);
+	if (! port3.empty())
+		ports.emplace_back(port3);
+	for (const auto &port : { port1, port2, port3 })
+		if (! port.empty()) {
+			try {
+				m_serial = std::make_unique<serial::Serial>(port, 115200, serial::Timeout::simpleTimeout(5000));
+				// First CAT command: Transceiver identification
+				m_serial->write("ID;");
+				m_serial->flushOutput();
+				// QMX always returns 020 (Kenwood TS-480)
+				std::string answer = m_serial->read(6);
+				if (answer != "ID020;") {
+					m_serial.reset();
+				} else {
+					m_port = port;
+					return 1;
+				}
+			} catch (const std::exception &ex) {
+			}
+		}
+#endif // CAT_ICV
+	return 0;
 }
 
 inline void setLongWord(uint32_t value, char *bytes)
@@ -128,6 +172,7 @@ inline void setLongWord(uint32_t value, char *bytes)
 
 bool Cat::set_freq(int64_t frequency)
 {
+#ifdef CAT_LIBUSB
 	// PE0FKO, Command 0x32:
 	// -------------
 	// Set the oscillator frequency by value. The frequency is formatted in MHz
@@ -141,10 +186,19 @@ bool Cat::set_freq(int64_t frequency)
 		0x32 /* REQUEST_SET_FREQ_BY_VALUE */, 0x700 + 0x55, 0,
 		(unsigned char*)buffer, sizeof(buffer), 500);
 	return retval == 4;
+#endif // CAT_LIBUSB
+	char buf[64] = "FA";
+	auto [ptr, ec] = std::to_chars(buf + 2, buf + 64, long(frequency + 12000));
+	int l = ptr - buf;
+	buf[l ++] = ';';
+	buf[l] = 0;
+	m_serial->write(buf);
+	return true;
 }
 
 bool Cat::set_cw_tx_freq(int64_t frequency)
 {
+#ifdef CAT_LIBUSB
 	// OK1IAK, Command 0x60:
 	// -------------
 	// Set the oscillator frequency by value. The frequency is formatted in MHz
@@ -158,10 +212,14 @@ bool Cat::set_cw_tx_freq(int64_t frequency)
 		0x60 /* REQUEST_SET_CW_TX_FREQ */, 0x700 + 0x55, 0,
 		(unsigned char*)buffer, sizeof(buffer), 500);
 	return retval == 4;
+#endif // CAT_LIBUSB
+
+	return false;
 }
 
 bool Cat::set_cw_keyer_speed(int wpm)
 {
+#ifdef CAT_LIBUSB
 	// OK1IAK, Command 0x65:
 	// Set keyer speed, in ms per dot.
 	if (wpm < 5)
@@ -174,10 +232,13 @@ bool Cat::set_cw_keyer_speed(int wpm)
 		0x65 /* REQUEST_SET_CW_KEYER_SPEED */, 0x700 + 0x55, 0,
 		&ms_per_dot, 1, 500);
 	return retval == 1;
+#endif // CAT_LIBUSB
+	return false;
 }
 
 bool Cat::set_cw_keyer_mode(KeyerMode keyer_mode)
 {
+#ifdef CAT_LIBUSB
 	// OK1IAK, Command 0x66:
 	// Set keyer mode.
 	unsigned char umode = 0x80;
@@ -191,12 +252,15 @@ bool Cat::set_cw_keyer_mode(KeyerMode keyer_mode)
 		0x66 /* REQUEST_SET_CW_KEYER_MODE */, 0x700 + 0x55, 0,
 		&umode, 1, 500);
 	return retval == 1;
+#endif // CAT_LIBUSB
+	return false;
 }
 
 // Delay of the dit sent after dit played, to avoid hot switching of the AMP relay, in microseconds. Maximum time is 15ms.
 // Relay hang after the last dit, in microseconds. Maximum time is 10 seconds.
 bool Cat::set_amp_control(bool enabled, int delay, int hang)
 {
+#ifdef CAT_LIBUSB
 	// OK1IAK, Command 0x67: CMD_SET_AMP_SEQUENCING
 	// Convert delay value to 0.5ms time intervals.
 	if (delay < 0 || ! enabled)
@@ -221,10 +285,13 @@ bool Cat::set_amp_control(bool enabled, int delay, int hang)
 		0x67 /* CMD_SET_AMP_SEQUENCING */, 0x700 + 0x55, 0,
 		(unsigned char*)buffer, sizeof(buffer), 500);
 	return retval == 4;
+#endif // CAT_LIBUSB
+	return false;
 }
 
 bool Cat::setIQBalanceAndPower(double phase_balance_deg, double amplitude_balance, double power)
 {
+#ifdef CAT_LIBUSB
 	// Allocate 9ms of 96x IQ samples. This buffer represents 4ms of raise, 1ms of steady and 4ms of fall.
 	std::vector<int16_t> buffer(96 * 2 * 9, 0);
 
@@ -247,7 +314,7 @@ bool Cat::setIQBalanceAndPower(double phase_balance_deg, double amplitude_balanc
 	}
 
 	// OK1IAK, Command 0x69: CMD_SET_CW_IQ_WAVEFORM
-	uint16_t  len = buffer.size() * sizeof(int16_t);
+	uint16_t  len = uint16_t(buffer.size()) * sizeof(int16_t);
 	// Swap endianness, the PSoC3 Keil compiler works with big endian.
 	// Use char* to avoid compiler aliasing.
 	char     *data = (char*)buffer.data();
@@ -258,6 +325,8 @@ bool Cat::setIQBalanceAndPower(double phase_balance_deg, double amplitude_balanc
 		0x69 /* CMD_SET_CW_IQ_WAVEFORM */, 0x700 + 0x55, 0,
 		(unsigned char*)data, len, 500);
 	return retval == len;
+#endif // CAT_LIBUSB
+	return false;
 }
 
 /*
